@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri Mar  7 14:47:29 2025
+Created on Sun Mar  9 15:44:27 2025
 
 @author: ray
 """
@@ -25,7 +25,23 @@ def file_to_dict(patient, data):
         
     return rolling_window
         
+def process(data):
+    x = data.drop(columns = "SepsisLabel")
+    x = x.dropna(axis="columns", thresh=2)
+    
+    # Variance Threshold setup
+    selector = VarianceThreshold(threshold=0.1)
 
+    selector.fit(x)
+    high_variance_indices = selector.get_support(indices=True)
+    high_variance = x.iloc[:, high_variance_indices]
+    
+    x_header = x.columns.values.tolist()
+    high_variance_header = high_variance.columns.values.tolist()
+
+    dropped_cols = [item for item in x_header if item not in high_variance_header]
+
+    return dropped_cols
 
 # Get a list of file names
 files_A = os.listdir("training_setA")
@@ -40,19 +56,13 @@ for file in files_A:
 for file in files_B: 
     patient_data = load_file("training_setB/"+file)
     dataframes |= file_to_dict(file[:-4], patient_data)
-    
-combined_data = pd.concat(dataframes.values())
 
-# Separate out features and labels
-x = combined_data.drop(columns = "SepsisLabel")
-y = combined_data["SepsisLabel"]
+# Finds dropped columns in each dataset   
+for frame in dataframes.values():
+    removed_cols = process(frame)
 
-# Variance Threshold setup
-selector = VarianceThreshold(threshold=0.1)
-
-selector.fit(x)
-high_variance_indices = selector.get_support(indices=True)
-high_variance = x.iloc[:, high_variance_indices]
-
+"""
+Find dropped columns that are always removed (ie. appear in all removed_cols)
+"""
 
 
