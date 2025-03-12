@@ -55,4 +55,3 @@ high_variance_indices = selector.get_support(indices=True)
 high_variance = x.iloc[:, high_variance_indices]
 
 
-
