@@ -9,6 +9,7 @@ Created on Sun Mar  9 15:44:27 2025
 import pandas as pd
 import os
 from sklearn.feature_selection import VarianceThreshold
+from collections import Counter
 
 
 def load_file(filename):
@@ -17,11 +18,10 @@ def load_file(filename):
     return df
 
 def file_to_dict(patient, data):
-    
-    rolling_window = {}
     # Rolling window setup: 6 hour window
-    for i in range(0, len(data.axes[0])-6):
-        rolling_window[patient+"_"+str(i)] = data[i:i+6]
+    rolling_window = {
+        f"{patient}_{i}": data.iloc[i:i+6] for i in range(len(data) - 5)
+        }
         
     return rolling_window
         
@@ -33,15 +33,28 @@ def process(data):
     selector = VarianceThreshold(threshold=0.1)
 
     selector.fit(x)
-    high_variance_indices = selector.get_support(indices=True)
-    high_variance = x.iloc[:, high_variance_indices]
-    
-    x_header = x.columns.values.tolist()
-    high_variance_header = high_variance.columns.values.tolist()
+    high_variance = x.iloc[:, selector.get_support(indices=True)]
 
-    dropped_cols = [item for item in x_header if item not in high_variance_header]
+    dropped_cols = list(set(x.columns) - set(high_variance.columns))
 
     return dropped_cols
+
+# Adapted from ChatGPT code
+def find_frequent_entries(lists, threshold=0.8):
+    # Number of lists
+    num_lists = len(lists)
+    # 80% threshold occurance
+    min_count = int(threshold * num_lists)
+
+    # Create Counter object to count occurances of each feature
+    entry_counts = Counter(entry for sublist in lists for entry in set(sublist))
+
+    # Find entries that appear in at least min_count lists
+    frequent_entries = {entry for entry, count in entry_counts.items() if count >= min_count}
+
+    return frequent_entries
+
+
 
 # Get a list of file names
 files_A = os.listdir("training_setA")
@@ -55,14 +68,12 @@ for file in files_A:
     
 for file in files_B: 
     patient_data = load_file("training_setB/"+file)
-    dataframes |= file_to_dict(file[:-4], patient_data)
+    dataframes.update(file_to_dict(file[:-4], patient_data))
 
 # Finds dropped columns in each dataset   
-for frame in dataframes.values():
-    removed_cols = process(frame)
+removed_cols = [process(frame) for frame in dataframes.values()]
 
-"""
-Find dropped columns that are always removed (ie. appear in all removed_cols)
-"""
 
+frequent_drops = find_frequent_entries(removed_cols, 0.8)
+print(frequent_drops)
 
