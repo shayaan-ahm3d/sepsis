@@ -57,18 +57,20 @@ def find_frequent_entries(lists, threshold=0.8):
 
 
 # Get a list of file names
-files_A = os.listdir("training_setA")
-files_B = os.listdir("training_setB")
+files_A = os.listdir("../training_setA")
+files_B = os.listdir("../training_setB")
 
 dataframes = {}  
  
 for file in files_A: 
-    patient_data = load_file("training_setA/"+file)
-    dataframes |= file_to_dict(file[:-4], patient_data)
+    patient_data = load_file("../training_setA/"+file)
+    # dataframes.update(file_to_dict(file[:-4], patient_data)) # Rolling window analysis
+    dataframes[str(file[:-4])] = patient_data # Patient analysis
     
 for file in files_B: 
-    patient_data = load_file("training_setB/"+file)
-    dataframes.update(file_to_dict(file[:-4], patient_data))
+    patient_data = load_file("../training_setB/"+file)
+    # dataframes.update(file_to_dict(file[:-4], patient_data)) # Rolling window analysis
+    dataframes[str(file[:-4])] = patient_data # Patient analysis
 
 # Finds dropped columns in each dataset   
 removed_cols = [process(frame) for frame in dataframes.values()]

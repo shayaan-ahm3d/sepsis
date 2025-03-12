@@ -28,17 +28,17 @@ def file_to_dict(patient, data):
 
 
 # Get a list of file names
-files_A = os.listdir("training_setA")
-files_B = os.listdir("training_setB")
+files_A = os.listdir("../training_setA")
+files_B = os.listdir("../training_setB")
 
 dataframes = {}  
  
 for file in files_A: 
-    patient_data = load_file("training_setA/"+file)
+    patient_data = load_file("../training_setA/"+file)
     dataframes |= file_to_dict(file[:-4], patient_data)
     
 for file in files_B: 
-    patient_data = load_file("training_setB/"+file)
+    patient_data = load_file("../training_setB/"+file)
     dataframes |= file_to_dict(file[:-4], patient_data)
     
 combined_data = pd.concat(dataframes.values())
