@@ -47,11 +47,7 @@ x = combined_data.drop(columns = "SepsisLabel")
 x = x.drop(columns = "pH")
 y = combined_data["SepsisLabel"]
 
-"""
-Display correlation pairs above a certain threshold (likely have same impact on
-                                                     model)
-"""
-
+# Create correlation matrix
 corr_matrix = x.corr()
 plt.figure(figsize=(8,6))
 sns.heatmap(corr_matrix, xticklabels=True, yticklabels=True)
