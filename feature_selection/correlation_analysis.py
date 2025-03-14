@@ -52,7 +52,7 @@ corr_matrix = x.corr()
 plt.figure(figsize=(8,6))
 sns.heatmap(corr_matrix, xticklabels=True, yticklabels=True)
 plt.title("Correlation Plot of Features")
-plt.savefig("../plots/feature_correlation.pdf", dpi=300, bbox_inches='tight')
+plt.savefig("../plots/feature_correlation.png", dpi=300, bbox_inches='tight')
 plt.show()
 
 # Find values above 0.9

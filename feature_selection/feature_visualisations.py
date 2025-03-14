@@ -52,7 +52,7 @@ y = combined_data["SepsisLabel"]
 plt.figure(figsize=(8,6))
 sns.boxplot(data = x_data, orient="h")
 plt.title("Outliers and Distribution of Values by Feature")
-plt.savefig("../plots/all_feature_boxplot.pdf", dpi=300, bbox_inches='tight')
+plt.savefig("../plots/all_feature_boxplot.png", dpi=300, bbox_inches='tight')
 plt.show()
 
 
