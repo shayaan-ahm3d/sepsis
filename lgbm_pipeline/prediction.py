@@ -11,10 +11,12 @@ import feature_plots as plotter
 # sliding window to create feature vector of means min max of continuous features
 # Upsample data imbalance sepsis / not-sepsis
 
-df_raw = loader.loadTrainingData(path_pattern='../training_setA/*.psv', max_files=100000)
-df_clean = cleaner.cleanData(df_raw)
+def create_window_feature_vector(patient_df: pd.DataFrame, window=6):
+  """
+  Given a single patient's cleaned DataFrame, create rolling window features
+  for each row. Returns (X_rolled, y_aligned) for that patient.
+  """
 
-def create_window_feature_vector(patient_df, window=6):
   X = patient_df.drop(columns=["SepsisLabel"])
   y = patient_df["SepsisLabel"]
 
@@ -30,29 +32,41 @@ def create_window_feature_vector(patient_df, window=6):
   # Return the rolling features + label for this patient
   return X_rolled, y_aligned
 
+patient_dict = loader.loadTrainingData(path_pattern='../training_setA/*.psv')
+cleaned_dict = cleaner.cleanData(patient_dict)
 
-X_all,y_all = create_window_feature_vector(df_clean, window=6)
+all_X = []
+all_y = []
 
-# for subdf in df_clean:
-#     print("Type of subdf:", type(subdf))
-#     Xp, yp = create_window_feature_vector(subdf, window=6)
-#     dfs.append(Xp)
-#     ys.append(yp)
+for filename, df in cleaned_dict.items():
+    X_rolled, y_aligned = create_window_feature_vector(df, window=6)
+    # Skip if empty or None
+    if X_rolled is not None and len(X_rolled) > 0:
+        all_X.append(X_rolled)
+        all_y.append(y_aligned)
+
+X_all = pd.concat(all_X, ignore_index=True)
+y_all = pd.concat(all_y, ignore_index=True)
 
 print("Shape of X_rolled:", X_all.shape)
 print("Shape of y_aligned:", y_all.shape)
+print(y_all.value_counts())
 
-X_train, X_test, y_train, y_test = train_test_split(X_all, y_all, 
-                                                    test_size=0.2, 
-                                                    random_state=42, 
-                                                    shuffle=True)
+X_train, X_test, y_train, y_test = train_test_split(
+    X_all, y_all, 
+    test_size=0.2, 
+    random_state=42, 
+    shuffle=True
+) 
 
-model = xgb.XGBClassifier(random_state=42)
+model = xgb.XGBClassifier(
+   scale_pos_weight = 50,
+   random_state=42)
+
 model.fit(X_train, y_train)
 
 y_pred = model.predict(X_test)
 
-# Evaluate
 print("Accuracy:", accuracy_score(y_test, y_pred))
 print("Classification Report:")
 print(classification_report(y_test, y_pred))

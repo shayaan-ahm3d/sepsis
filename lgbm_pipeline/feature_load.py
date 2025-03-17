@@ -22,11 +22,14 @@ def loadTrainingData(path_pattern='../training_setA/*.psv', max_files=None):
   if max_files is not None:
       psv_files = psv_files[:max_files]
 
-  training_df = pd.DataFrame()
+  patient_dict = {}
 
-  for file in tqdm(psv_files, desc='Loading PSV Files'):
-    patient_record = loadFile(file)
-    patient_record = patient_record.drop(patient_record.columns[-7:-1], axis=1)
-    training_df = pd.concat([training_df, patient_record], ignore_index=True)
+  for file_path in tqdm(psv_files, desc='Loading PSV Files'):
+      filename = os.path.basename(file_path)  # e.g. "p000001.psv"
+      patient_record = loadFile(file_path)
 
-  return training_df
+      patient_record = patient_record.drop(patient_record.columns[-7:-1], axis=1)
+
+      patient_dict[filename[1:-4]] = patient_record
+
+  return patient_dict
