@@ -12,8 +12,8 @@ def cleanData(df: pd.DataFrame) -> pd.DataFrame:
 
 
 
-df_raw = loader.loadTrainingData(path_pattern='../training_setA/*.psv', max_files=1000)
-df_clean = cleanData(df_raw)
-print(df_raw.head(10))
-print(df_clean.head(10))
-print("DataFrame columns:", df_clean.columns)
+# df_raw = loader.loadTrainingData(path_pattern='../training_setA/*.psv', max_files=1000)
+# df_clean = cleanData(df_raw)
+# print(df_raw.head(10))
+# print(df_clean.head(10))
+# print("DataFrame columns:", df_clean.columns)
