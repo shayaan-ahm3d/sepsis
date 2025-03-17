@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, roc_auc_score
+import numpy as np
 
 def plot_roc_auc(model, X_test, y_test):
     """
@@ -43,4 +44,49 @@ def plot_roc_auc(model, X_test, y_test):
     plt.ylabel('True Positive Rate')
     plt.title('ROC Curve (Predicted=1 or Actual=1 Only)')
     plt.legend(loc='lower right')
+    plt.show()
+
+def plot_most_important_features(model, feature_names, top_n=10):
+    """
+    Plots a bar chart of the top N most important features for a trained XGBoost model.
+    
+    Parameters
+    ----------
+    model : xgb.XGBClassifier or a similar scikit-learn estimator
+        A trained XGBoost model with a feature_importances_ attribute.
+    feature_names : list of str
+        List of feature names corresponding to the columns in the training data.
+    top_n : int
+        Number of top features to plot (by importance).
+    """
+    importances = model.feature_importances_
+    
+    # Safety check: if the model doesn't provide importances or if
+    # the lengths mismatch, handle gracefully
+    if importances is None or len(importances) == 0:
+        print("No feature importances found in the model.")
+        return
+    if len(importances) != len(feature_names):
+        print("Warning: length mismatch between importances and feature_names.")
+    
+    importances_pct = importances / importances.sum() * 100.0
+    
+    indices = np.argsort(importances_pct)[::-1]  # highest first
+    
+    top_indices = indices[:top_n]
+    top_features = [feature_names[i] for i in top_indices]
+    top_importances = importances_pct[top_indices]
+    
+    # Reverse again so that the top feature appears at the top of the bar chart
+    top_features_reversed = top_features[::-1]
+    top_importances_reversed = top_importances[::-1]
+    
+    plt.figure()
+    plt.barh(range(top_n), top_importances_reversed)
+    plt.yticks(range(top_n), top_features_reversed)
+    plt.xlabel("Feature Importance (%)")
+    plt.title(f"Top {top_n} Most Important Features (in %)")
+    
+    plt.xlim([0, max(top_importances) * 1.1])  
+    
     plt.show()
