@@ -32,7 +32,7 @@ def create_window_feature_vector(patient_df: pd.DataFrame, window=6):
   # Return the rolling features + label for this patient
   return X_rolled, y_aligned
 
-patient_dict = loader.loadTrainingData(path_pattern='../training_setA/*.psv')
+patient_dict = loader.loadTrainingData(path_pattern='../training_setA/*.psv', max_files=100000)
 cleaned_dict = cleaner.cleanData(patient_dict)
 
 all_X = []
@@ -50,7 +50,8 @@ y_all = pd.concat(all_y, ignore_index=True)
 
 print("Shape of X_rolled:", X_all.shape)
 print("Shape of y_aligned:", y_all.shape)
-print(y_all.value_counts())
+
+neg_samples, pos_samples = y_all.value_counts()
 
 X_train, X_test, y_train, y_test = train_test_split(
     X_all, y_all, 
@@ -60,10 +61,15 @@ X_train, X_test, y_train, y_test = train_test_split(
 ) 
 
 model = xgb.XGBClassifier(
-   scale_pos_weight = 50,
-   random_state=42)
+    scale_pos_weight = neg_samples/pos_samples,
+    objective='binary:logistic',
+    eval_metric='auc',
+    random_state=42)
 
-model.fit(X_train, y_train)
+model.fit(
+    X_train, y_train,
+    eval_set=[(X_test, y_test)],
+    verbose=1)
 
 y_pred = model.predict(X_test)
 
