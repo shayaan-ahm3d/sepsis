@@ -2,6 +2,7 @@ import seaborn as sns
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
+from sklearn.model_selection import GridSearchCV
 
 import xgboost as xgb
 import feature_load as loader
@@ -60,21 +61,39 @@ X_train, X_test, y_train, y_test = train_test_split(
     shuffle=True
 ) 
 
+param_grid = {
+    'scale_pos_weight': [0.5*(neg_samples/pos_samples), neg_samples/pos_samples, 2*(neg_samples/pos_samples)],
+    'max_depth': [3, 5],
+    'learning_rate': [0.01, 0.1],
+    'n_estimators': [100, 300]
+}
+
 model = xgb.XGBClassifier(
-    scale_pos_weight = neg_samples/pos_samples,
     objective='binary:logistic',
     eval_metric='auc',
     random_state=42)
 
-model.fit(
+grid_search = GridSearchCV(
+    model, 
+    param_grid, 
+    scoring='average_precision',  # or 'precision'
+    cv=3,
+    n_jobs=-1,
+    verbose=1
+)
+
+grid_search.fit(X_train, y_train)
+best_model = grid_search.best_estimator_
+
+best_model.fit(
     X_train, y_train,
     eval_set=[(X_test, y_test)],
     verbose=1)
 
-y_pred = model.predict(X_test)
+y_pred = best_model.predict(X_test)
 
 print("Accuracy:", accuracy_score(y_test, y_pred))
 print("Classification Report:")
 print(classification_report(y_test, y_pred))
 
-plotter.plot_roc_auc(model, X_test, y_test)
+plotter.plot_roc_auc(best_model, X_test, y_test)
