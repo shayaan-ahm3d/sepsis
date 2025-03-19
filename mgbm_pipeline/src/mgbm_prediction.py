@@ -5,15 +5,15 @@ from pprint import pprint
 from data.load_data import loadTrainingData
 from plots.feature_plots import plot_missingness
 
-def prepare_data(training_df:pd.DataFrame) -> pd.DataFrame:
+def prepareData(training_df:pd.DataFrame) -> pd.DataFrame:
   # Graph missingness on each training set - Create a graph function that takes a single training df
   plot_missingness(training_df, title=f"Missing Data")
   # Call a function to shift SepsisLabel 6 places back and pad the start with whatever the first label is
   # Call a function to clean
   return None
 
-def train_model(hospitals_df:pd.DataFrame):
-  cleaned_df = prepare_data(hospitals_df)
+def trainModel(hospitals_df:pd.DataFrame):
+  cleaned_df = prepareData(hospitals_df)
 
   return 0
     
@@ -52,7 +52,7 @@ def main():
   all_data = pd.concat(dfs, ignore_index=True)
   print(f"\nCombined training set shape: {all_data.shape}")
 
-  train_model(all_data)
+  trainModel(all_data)
 
 if __name__ == '__main__':
     main()

@@ -10,19 +10,35 @@ def plot_missingness(df: pd.DataFrame, title: str = "Missing Data Visualization"
       df: pd.DataFrame - the DataFrame to analyze.
       title: str - the title for the plot.
     """
-    # Calculate percentage of missing values per column and filter out columns with no missing values.
+    # Calculate percentage of missing values per column.
     missing_percent = df.isnull().mean() * 100
-    missing_percent = missing_percent[missing_percent > 0].sort_values(ascending=True)
     
-    plt.figure(figsize=(10, 6))
-    bars = plt.barh(missing_percent.index, missing_percent.values, color="skyblue")
-    plt.xlabel("Percentage Missing")
+    # Print the average missingness across all columns.
+    avg_missing = missing_percent.mean()
+    print(f"Average missingness: {avg_missing:.2f}%")
+    
+    # Filter to only columns with missing values and sort them.
+    missing_percent = missing_percent[missing_percent > 0].sort_values(ascending=False)
+    
+    # Create a vertical bar chart with wider bars.
+    plt.figure(figsize=(12, 6))
+    bars = plt.bar(missing_percent.index, missing_percent.values, color="skyblue", width=.7)
+    plt.ylabel("Percentage Missing")
     plt.title(title)
+    plt.xticks(rotation=45, ha="right")
     
-    # Annotate each bar with the missing percentage value.
+    # Annotate each bar with its missing percentage.
     for bar in bars:
-        width = bar.get_width()
-        plt.text(width + 1, bar.get_y() + bar.get_height()/2, f'{width:.1f}%', va='center', fontsize=10)
+      height = bar.get_height()
+      plt.text(
+          bar.get_x() + bar.get_width() / 2,
+          height + 1,
+          f"{height:.1f}%",
+          ha="center",
+          va="bottom",
+          fontsize=10,
+          rotation=45  # Rotate the annotation text by 45 degrees.
+      )
     
     plt.tight_layout()
     plt.show()
