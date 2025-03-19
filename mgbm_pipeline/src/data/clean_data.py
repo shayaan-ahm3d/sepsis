@@ -1,14 +1,13 @@
 import pandas as pd
 import numpy as np
 
-def forwardFillData(patient_dict: pd.DataFrame) -> pd.DataFrame:    
-  cleaned_dict = {}
-  for filename, df in patient_dict.items():
-      clean_df = df.copy()
-      clean_df.ffill(inplace=True)       # forward fill
-      clean_df.fillna(value=1, inplace=True)
-      cleaned_dict[filename] = clean_df
-  return cleaned_dict
+def forwardFillData(patient_df: pd.DataFrame) -> pd.DataFrame:    
+  clean_df = patient_df.copy()
+
+  clean_df.ffill(inplace=True)       # forward fill
+  clean_df.fillna(value=1, inplace=True)
+
+  return clean_df
 
 def forwardFillMAP(all_df: pd.DataFrame) -> pd.DataFrame:
   map_df = all_df.copy()
