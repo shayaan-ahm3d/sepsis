@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 def forwardFillData(patient_dict: pd.DataFrame) -> pd.DataFrame:    
   cleaned_dict = {}
@@ -33,3 +34,20 @@ def forwardFillSBP(all_df: pd.DataFrame) -> pd.DataFrame:
   sbp_df.loc[mask_sbp, 'SBP'] = 3 * sbp_df.loc[mask_sbp, 'MAP'] - 2 * sbp_df.loc[mask_sbp, 'DBP']
 
   return sbp_df
+
+def forwardFillHasselbalch(all_df: pd.DataFrame) -> pd.DataFrame:
+  df = all_df.copy()
+  
+  # Fill missing pH when PaCO2 and HCO3 are available.
+  mask_ph = df['pH'].isnull() & df['PaCO2'].notnull() & df['HCO3'].notnull()
+  df.loc[mask_ph, 'pH'] = 6.1 + np.log10(df.loc[mask_ph, 'HCO3'] / (0.03 * df.loc[mask_ph, 'PaCO2']))
+  
+  # Fill missing PaCO2 when pH and HCO3 are available.
+  mask_paco2 = df['PaCO2'].isnull() & df['pH'].notnull() & df['HCO3'].notnull()
+  df.loc[mask_paco2, 'PaCO2'] = df.loc[mask_paco2, 'HCO3'] / (0.03 * (10 ** (df.loc[mask_paco2, 'pH'] - 6.1)))
+  
+  # Fill missing HCO3 when pH and PaCO2 are available.
+  mask_hco3 = df['HCO3'].isnull() & df['pH'].notnull() & df['PaCO2'].notnull()
+  df.loc[mask_hco3, 'HCO3'] = 0.03 * df.loc[mask_hco3, 'PaCO2'] * (10 ** (df.loc[mask_hco3, 'pH'] - 6.1))
+
+  return df
