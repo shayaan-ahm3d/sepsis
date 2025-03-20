@@ -50,3 +50,12 @@ def forwardFillHasselbalch(all_df: pd.DataFrame) -> pd.DataFrame:
   df.loc[mask_hco3, 'HCO3'] = 0.03 * df.loc[mask_hco3, 'PaCO2'] * (10 ** (df.loc[mask_hco3, 'pH'] - 6.1))
 
   return df
+
+def backShiftSepsisLabel(patient_df: pd.DataFrame) -> pd.DataFrame:
+    shifted_df = patient_df.copy()
+    
+    shifted_df['SepsisLabel'] = shifted_df['SepsisLabel'].shift(6)
+    first_val = patient_df['SepsisLabel'].iloc[0]
+    shifted_df['SepsisLabel'].fillna(first_val, inplace=True)
+    
+    return shifted_df
