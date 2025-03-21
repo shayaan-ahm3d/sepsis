@@ -12,6 +12,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 # # Use LaTeX for all text in the plot
 # plt.rcParams.update({
 #     "text.usetex": True,
@@ -45,14 +46,50 @@ for file in files_B:
 combined_data = pd.concat(dataframes.values())
 
 # Separate out features and labels
-x_data = combined_data.drop(columns = "SepsisLabel")
+x_data = combined_data.drop(columns = ["SepsisLabel", "Gender", "Unit1", 
+                                       "HospAdmTime", "ICULOS"])
 y = combined_data["SepsisLabel"]
 
-# Plot 'box plots' of all features (basically just shows outliers)
-plt.figure(figsize=(8,6))
-sns.boxplot(data = x_data, orient="h")
-plt.title("Outliers and Distribution of Values by Feature")
-plt.savefig("../plots/all_feature_boxplot.png", dpi=300, bbox_inches='tight')
-plt.show()
+""" Swap boxplot to histogram for better readability """
+
+# # Plot 'box plots' of all features (basically just shows outliers)
+# plt.figure(figsize=(8,6))
+# sns.boxplot(data = x_data, orient="h")
+# plt.title("Outliers and Distribution of Values by Feature")
+# # plt.savefig("../plots/all_feature_boxplot.png", dpi=300, bbox_inches='tight')
+# plt.show()
+
+
+# Plot histograms - highlighting outliers
+for feature in x_data.columns:
+
+    data = x_data[feature].dropna()
+    mean, sigma = data.mean(), data.std()
+    # Calculate outlier boundaries
+    lower_bound, upper_bound = mean - 3*sigma, mean + 3*sigma 
+
+    # Define bin edges
+    bins = np.histogram_bin_edges(data, bins=50)
+
+    # Separate values inside and outside the 3-sigma range
+    inlier_counts, _ = np.histogram(data[(data >= lower_bound) & (data <= upper_bound)], bins=bins)
+    outlier_counts, _ = np.histogram(data[(data < lower_bound) | (data > upper_bound)], bins=bins)
+
+    # Plot histogram
+    plt.figure(figsize=(8, 5))
+    plt.bar(bins[:-1], inlier_counts, width=np.diff(bins), color="blue", alpha=0.6, label="Within 3σ")
+    plt.bar(bins[:-1], outlier_counts, width=np.diff(bins), color="red", alpha=0.6, label="Outliers")
+
+    # Overlay vertical lines for mean and thresholds
+    plt.axvline(mean, color="black", linestyle="--", label="Mean")
+    plt.axvline(lower_bound, color="purple", linestyle="--", label="3 Std Dev")
+    plt.axvline(upper_bound, color="purple", linestyle="--")
+
+    plt.title(f"Histogram of {feature}")
+    plt.xlabel(feature)
+    plt.ylabel("Frequency")
+    plt.legend()
+    plt.savefig(f"../plots/{feature}_histogram.png", dpi=300, bbox_inches='tight')
+    plt.show()
 
 
