@@ -84,3 +84,41 @@ def split_and_restructure(df: pd.DataFrame) -> dict:
       patient_dict[patient_id] = group
       
   return patient_dict
+
+def reconstruct_vitals(patient_df: pd.DataFrame, max_iter=10) -> pd.DataFrame:
+    df_reconstructed = patient_df.copy()
+    
+    delta1_cols = [col for col in df_reconstructed.columns if col.endswith('_delta1')]
+    vital_cols = [col.replace('_delta1', '') for col in delta1_cols]  # Get base vital names
+
+    for vital in vital_cols:
+        vital_col = vital
+        delta1_col = f"{vital}_delta1"
+        delta2_col = f"{vital}_delta2"
+
+        if df_reconstructed[vital_col].isna().all():
+            continue
+
+        for _ in range(max_iter):
+            filled_before = df_reconstructed[vital_col].notna().sum()
+
+            # Forward fill using delta1
+            for i in range(1, len(df_reconstructed)):
+                if pd.isna(df_reconstructed.at[i, vital_col]) and pd.notna(df_reconstructed.at[i-1, vital_col]) and pd.notna(df_reconstructed.at[i, delta1_col]):
+                    df_reconstructed.at[i, vital_col] = df_reconstructed.at[i-1, vital_col] + df_reconstructed.at[i, delta1_col]
+
+            # Backfill using delta2
+            for i in range(2, len(df_reconstructed)):
+                if pd.isna(df_reconstructed.at[i, vital_col]) and pd.notna(df_reconstructed.at[i-2, vital_col]) and pd.notna(df_reconstructed.at[i, delta2_col]):
+                    df_reconstructed.at[i, vital_col] = df_reconstructed.at[i-2, vital_col] + df_reconstructed.at[i, delta2_col]
+
+            filled_after = df_reconstructed[vital_col].notna().sum()
+
+            # Stop if no new values were filled in this iteration
+            if filled_after == filled_before:
+                break
+
+    delta_cols = [col for col in df_reconstructed.columns if col.endswith('_delta1') or col.endswith('_delta2')]
+    df_reconstructed.drop(columns=delta_cols, inplace=True)
+
+    return df_reconstructed
