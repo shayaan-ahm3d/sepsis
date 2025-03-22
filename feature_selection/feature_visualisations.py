@@ -50,15 +50,6 @@ x_data = combined_data.drop(columns = ["SepsisLabel", "Gender", "Unit1",
                                        "HospAdmTime", "ICULOS"])
 y = combined_data["SepsisLabel"]
 
-""" Swap boxplot to histogram for better readability """
-
-# # Plot 'box plots' of all features (basically just shows outliers)
-# plt.figure(figsize=(8,6))
-# sns.boxplot(data = x_data, orient="h")
-# plt.title("Outliers and Distribution of Values by Feature")
-# # plt.savefig("../plots/all_feature_boxplot.png", dpi=300, bbox_inches='tight')
-# plt.show()
-
 
 # Plot histograms - highlighting outliers
 for feature in x_data.columns:
