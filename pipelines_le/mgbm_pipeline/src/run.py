@@ -14,7 +14,7 @@ pd.set_option('display.max_rows', None)
 
 # Cell 2: Load data
 directories = ['../../../training_setA/', '../../../training_setB/']
-max_files = 15000  # Adjust as needed
+max_files = 10000  # Adjust as needed
 
 patient_dict = {}
 

@@ -2,6 +2,7 @@ import pandas as pd
 from tqdm import tqdm
 import numpy as np
 from joblib import Parallel, delayed
+from itertools import chain
 
 
 
@@ -243,17 +244,7 @@ def extract_features_with_expanding_window(patient_dict: dict) -> pd.DataFrame:
 
     del patient_dict
     # 'results' is a list of lists (one list of dicts per patient). Flatten it:
-    all_expanded_features = [fdict for rlist in tqdm(results,desc="Unpacking:") for fdict in rlist]
-    
-    # total_items = sum(len(rlist) for rlist in results)
-
-    # all_expanded_features = []
-    # with tqdm(total=total_items, desc="Flattening results", unit="items") as pbar:
-    #     for rlist in results:
-    #         all_expanded_features.extend(rlist)
-    #         pbar.update(len(rlist))
-    
-    # del results
+    all_expanded_features = chain.from_iterable(results)
     
     feature_df = pd.DataFrame(all_expanded_features)
     del all_expanded_features
