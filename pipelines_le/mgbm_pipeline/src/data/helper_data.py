@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 def count_sepsis_labels(patient_dict: dict) -> None:
     """
@@ -44,3 +45,10 @@ def count_sepsis_labels(patient_dict: dict) -> None:
         print(f"Maximum number of septic labels: {max_sepsis} (Patient ID: {patient_id_max})")
     else:
         print("No septic patients found in the dictionary.")
+
+def concat_dict_of_dataframes(df_dict: dict) -> pd.DataFrame:
+    concatenated_df = pd.concat(
+        [df.assign(patient_id=patient_id) for patient_id, df in df_dict.items()],
+        ignore_index=True
+    )
+    return concatenated_df

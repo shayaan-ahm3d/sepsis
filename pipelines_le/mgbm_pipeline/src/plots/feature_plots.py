@@ -1,6 +1,6 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.metrics import roc_curve, roc_auc_score
+from sklearn.metrics import roc_curve, roc_auc_score, confusion_matrix
 
 def plot_missingness(df: pd.DataFrame, title: str = "Missing Data Visualization") -> None:
     """
@@ -85,4 +85,43 @@ def plot_roc_auc(model, X_test, y_test):
     plt.ylabel('True Positive Rate')
     plt.title('ROC Curve (Predicted=1 or Actual=1 Only)')
     plt.legend(loc='lower right')
+    plt.show()
+    
+def plot_confusion_matrix(y_true, y_pred, labels=("No Sepsis", "Sepsis")):
+    """
+    Plots a confusion matrix using matplotlib.
+    
+    Args:
+        y_true: 1D array-like of true labels (0 or 1).
+        y_pred: 1D array-like of predicted labels (0 or 1).
+        labels: Tuple or list of label names for display 
+                (first is the "negative" label, second is the "positive" label).
+    """
+    # Compute the confusion matrix
+    cm = confusion_matrix(y_true, y_pred)
+
+    # Create a figure and axis
+    fig, ax = plt.subplots()
+    
+    # Show the matrix with imshow. By default it uses a colormap, 
+    # but we are not specifying any color explicitly.
+    im = ax.imshow(cm, interpolation='nearest')
+    
+    # Set the tick labels to your chosen names
+    ax.set_xticks([0, 1])
+    ax.set_yticks([0, 1])
+    ax.set_xticklabels(labels)
+    ax.set_yticklabels(labels)
+    
+    # Loop over data dimensions and create text annotations.
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(
+                j, i, cm[i, j],
+                ha="center", va="center"
+            )
+    
+    ax.set_ylabel("True Label")
+    ax.set_xlabel("Predicted Label")
+    plt.title("Confusion Matrix")
     plt.show()

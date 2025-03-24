@@ -59,3 +59,6 @@ def backShiftSepsisLabel(patient_df: pd.DataFrame) -> pd.DataFrame:
     shifted_df['SepsisLabel'].fillna(first_val, inplace=True)
     
     return shifted_df
+
+def dropColumns(patient_df: pd.DataFrame, columns) -> pd.DataFrame:
+    return patient_df.drop(columns=columns, errors='ignore').copy()
