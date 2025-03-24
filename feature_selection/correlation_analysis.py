@@ -27,8 +27,8 @@ def load_file(filename):
 
 
 # Get a list of file names
-files_A = os.listdir("../training_setA")
-files_B = os.listdir("../training_setB")
+files_A = os.listdir(f"{os.getcwd()}/../training_setA")
+files_B = os.listdir(f"{os.getcwd()}/../training_setB")
 
 dataframes = {}  
  
