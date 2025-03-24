@@ -1,6 +1,9 @@
 import pandas as pd
 from tqdm import tqdm
 import numpy as np
+from joblib import Parallel, delayed
+
+
 
 A_FEATURES = ['HR', 'O2Sat', 'Temp', 'SBP', 'MAP', 'DBP', 'Resp']
 B_FEATURES = ['HR', 'O2Sat', 'Temp', 'SBP', 'MAP', 'DBP', 'Resp', 'EtCO2',
@@ -142,11 +145,8 @@ def missingness_last_5_rows(rows: pd.DataFrame):
     
   return {"L0_sum": l0_sum, "L0_var": l0_var}
 
-def extract_features_for_patient(df, global_means):
+def extract_features_for_patient(df):
     df_copy = df.copy()
-
-    df_copy = impute_A_features(df_copy, A_FEATURES, global_means)
-
     feats = {}
 
     for col in A_FEATURES:
@@ -180,57 +180,75 @@ def extract_features_for_patient(df, global_means):
 
     return feats
 
-def extract_features_from_patient_dict(patient_dict: dict) -> pd.DataFrame:
-  # Get Split of columns with missingness 
-  # ~Set to AB features for now
+# def extract_features_from_patient_dict(patient_dict: dict) -> pd.DataFrame:
+#   # Get Split of columns with missingness 
+#   # ~Set to AB features for now
   
-  all_training_features = []
+#   all_training_features = []
   
-  all_data = pd.concat(patient_dict.values(), axis=0)
-  global_means = all_data.mean(numeric_only=True) 
-  print(all_data.shape)
+#   all_data = pd.concat(patient_dict.values(), axis=0)
+#   global_means = all_data.mean(numeric_only=True) 
+#   print(all_data.shape)
 
   
-  for patient_id, df in tqdm(patient_dict.items(),desc="extracting features"):
-    feat_dict = extract_features_for_patient(df, global_means)
-    feat_dict["patient_id"] = patient_id  # keep track of which patient
-    all_training_features.append(feat_dict)
+#   for patient_id, df in tqdm(patient_dict.items(),desc="extracting features"):
+#     feat_dict = extract_features_for_patient(df, global_means)
+#     feat_dict["patient_id"] = patient_id  # keep track of which patient
+#     all_training_features.append(feat_dict)
     
   
-  feature_df = pd.DataFrame(all_training_features)
-  feature_df.set_index("patient_id", inplace=True)
+#   feature_df = pd.DataFrame(all_training_features)
+#   feature_df.set_index("patient_id", inplace=True)
 
-  print(feature_df.shape)
-  feature_df.head()
+#   print(feature_df.shape)
+#   feature_df.head()
   
-  return feature_df
+#   return feature_df
+
+def extract_features_for_patient_with_windows(patient_id, df, global_means):
+    """This function does what your current loop does for a single patient."""
+    num_rows = len(df)
+    expanded_features = []
+    df_imputed = df.copy()
+
+    df_imputed = impute_A_features(df_imputed, A_FEATURES, global_means)
+    
+    for i in range(1, num_rows + 1):
+        partial_df = df_imputed.iloc[:i]
+        feat_dict = extract_features_for_patient(partial_df)
+        
+        sepsis_label_i = df["SepsisLabel"].iloc[i - 1]
+        feat_dict["SepsisLabel"] = sepsis_label_i
+        feat_dict["patient_id"] = patient_id
+        feat_dict["window_size"] = i
+
+        expanded_features.append(feat_dict)
+
+    return expanded_features
 
 def extract_features_with_expanding_window(patient_dict: dict) -> pd.DataFrame:  
-  all_data = pd.concat(patient_dict.values(), axis=0)
-  global_means = all_data.mean(numeric_only=True)
-  print(all_data.shape)
+    # combine all for global means
+    all_data = pd.concat(patient_dict.values(), axis=0)
+    global_means = all_data.mean(numeric_only=True)
+    print(all_data.shape)
 
-  all_expanded_features = []
-  
-  for patient_id, df in tqdm(patient_dict.items(), desc="extracting features with expanding window"):
-      
-    num_rows = len(df)
-    for i in range(1, num_rows + 1):
-      partial_df = df.iloc[:i]
-      
-      feat_dict = extract_features_for_patient(partial_df, global_means)
-      
-      sepsis_label_i = df["SepsisLabel"].iloc[i - 1]
-      feat_dict["SepsisLabel"] = sepsis_label_i
+    # Use joblib to parallelize each patient
+    results = Parallel(n_jobs=-1, verbose=5)(
+        delayed(extract_features_for_patient_with_windows)(pid, df, global_means)
+        for pid, df in tqdm(patient_dict.items(), desc="extracting features with expanding window")
+    )
 
-      feat_dict["patient_id"] = patient_id
-      feat_dict["window_size"] = i
-      
-      all_expanded_features.append(feat_dict)
-  
+    # 'results' is a list of lists (one list of dicts per patient). Flatten it:
+    # all_expanded_features = [fdict for rlist in results for fdict in rlist]
+    
+    total_items = sum(len(rlist) for rlist in results)
 
-  feature_df = pd.DataFrame(all_expanded_features)
-  
-  
-  print("Final shape of expanded feature DataFrame:", feature_df.shape)
-  return feature_df
+    all_expanded_features = []
+    with tqdm(total=total_items, desc="Flattening results", unit="items") as pbar:
+        for rlist in results:
+            all_expanded_features.extend(rlist)
+            pbar.update(len(rlist))
+    
+    feature_df = pd.DataFrame(all_expanded_features)
+    print("Final shape of expanded feature DataFrame:", feature_df.shape)
+    return feature_df
