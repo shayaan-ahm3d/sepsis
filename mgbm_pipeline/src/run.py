@@ -7,16 +7,16 @@ import xgboost as xgb
 
 from data.load_data import loadTrainingData
 from data.helper_data import concat_dict_of_dataframes
-from plots.feature_plots import plot_missingness,plot_roc_auc
+from plots.feature_plots import plot_missingness,plot_roc_auc,plot_confusion_matrix
 from data.clean_data import forwardFillMAP,forwardFillDBP,forwardFillSBP,forwardFillHasselbalch
 from tqdm import tqdm
 from features.create_feature_vectors import extract_features_from_patient_dict,extract_features_with_expanding_window
 
 """
 TODO:
-•⁠  ⁠upsample tests 
+•⁠  ⁠upsample tests ><
 •⁠  ⁠⁠blue crystal run
-•⁠  ⁠⁠plot output matrix
+•⁠  ⁠⁠plot output matrix ><
 •⁠  ⁠⁠custom auc max function
 •⁠  ⁠⁠debug vector on 1 patient
 •⁠  ⁠⁠convert to Jupyter  notebook
@@ -64,6 +64,10 @@ if "window_size" in feature_df.columns:
 X = feature_df.drop(columns=["SepsisLabel"], errors="ignore")  # features
 y = feature_df["SepsisLabel"]                                  # target
 
+neg_samples, pos_samples = y.value_counts()
+print(neg_samples,pos_samples)
+
+
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
@@ -74,7 +78,8 @@ model = xgb.XGBClassifier(
     learning_rate=0.1,
     random_state=42,
     use_label_encoder=False,
-    eval_metric="logloss"  # internal XGB metric
+    eval_metric="logloss",  # internal XGB metric
+    scale_pos_weight = neg_samples / pos_samples
 )
 
 model.fit(X_train, y_train)
@@ -86,6 +91,7 @@ y_proba = model.predict_proba(X_test)[:, 1]  # probability for positive class
 # auc = roc_auc_score(y_test, y_proba)
 # print(f"Test AUC: {auc:.4f}")
 plot_roc_auc(model,X_test,y_test)
+plot_confusion_matrix(y_test, y_pred, labels=("No Sepsis", "Sepsis"))
 
 # Print classification metrics
 print("Classification Report:")

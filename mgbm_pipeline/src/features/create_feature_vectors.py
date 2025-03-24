@@ -28,8 +28,8 @@ def impute_A_features(df, cols, global_means):
       df[col] = df[col].interpolate(method='linear', limit_direction='both')
     
 
-    df[col] = df[col].fillna(method='ffill')
-    df[col] = df[col].fillna(method='bfill')
+    df[col] = df[col].ffill()
+    df[col] = df[col].bfill()
     
   return df
 
