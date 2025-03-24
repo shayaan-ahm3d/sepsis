@@ -224,6 +224,7 @@ def extract_features_for_patient_with_windows(patient_id, df, global_means):
 
         expanded_features.append(feat_dict)
 
+    del df_imputed
     return expanded_features
 
 def extract_features_with_expanding_window(patient_dict: dict) -> pd.DataFrame:  
@@ -232,23 +233,29 @@ def extract_features_with_expanding_window(patient_dict: dict) -> pd.DataFrame:
     global_means = all_data.mean(numeric_only=True)
     print(all_data.shape)
 
+    del all_data
+    
     # Use joblib to parallelize each patient
     results = Parallel(n_jobs=-1, verbose=5)(
         delayed(extract_features_for_patient_with_windows)(pid, df, global_means)
         for pid, df in tqdm(patient_dict.items(), desc="extracting features with expanding window")
     )
 
+    del patient_dict
     # 'results' is a list of lists (one list of dicts per patient). Flatten it:
-    # all_expanded_features = [fdict for rlist in results for fdict in rlist]
+    all_expanded_features = [fdict for rlist in tqdm(results,desc="Unpacking:") for fdict in rlist]
     
-    total_items = sum(len(rlist) for rlist in results)
+    # total_items = sum(len(rlist) for rlist in results)
 
-    all_expanded_features = []
-    with tqdm(total=total_items, desc="Flattening results", unit="items") as pbar:
-        for rlist in results:
-            all_expanded_features.extend(rlist)
-            pbar.update(len(rlist))
+    # all_expanded_features = []
+    # with tqdm(total=total_items, desc="Flattening results", unit="items") as pbar:
+    #     for rlist in results:
+    #         all_expanded_features.extend(rlist)
+    #         pbar.update(len(rlist))
+    
+    # del results
     
     feature_df = pd.DataFrame(all_expanded_features)
+    del all_expanded_features
     print("Final shape of expanded feature DataFrame:", feature_df.shape)
     return feature_df
