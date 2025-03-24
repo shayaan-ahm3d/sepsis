@@ -30,6 +30,6 @@ def loadTrainingData(path_pattern='../training_setA/*.psv', max_files=None, igno
 
       patient_record = patient_record.drop(ignore_columns, axis=1)
 
-      patient_dict[filename[1:-4]] = patient_record
+      patient_dict[filename] = patient_record
 
   return patient_dict
