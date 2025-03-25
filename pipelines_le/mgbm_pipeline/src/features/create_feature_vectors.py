@@ -7,12 +7,12 @@ from itertools import chain
 
 
 A_FEATURES = ['HR', 'O2Sat', 'Temp', 'SBP', 'MAP', 'DBP', 'Resp']
-B_FEATURES = ['HR', 'O2Sat', 'Temp', 'SBP', 'MAP', 'DBP', 'Resp', 'EtCO2',
+B_FEATURES = [ 'Temp', 'DBP', 'EtCO2',
               'BaseExcess', 'HCO3', 'FiO2', 'pH', 'PaCO2', 'SaO2', 'AST', 'BUN',
-              'Alkalinephos', 'Calcium', 'Chloride', 'Creatinine', 'Bilirubin_direct',
+              'Calcium', 'Chloride', 'Creatinine',
               'Glucose', 'Lactate', 'Magnesium', 'Phosphate', 'Potassium',
-              'Bilirubin_total', 'TroponinI', 'Hct', 'Hgb', 'PTT', 'WBC',
-              'Fibrinogen', 'Platelets']
+              'Hct', 'Hgb', 'PTT', 'WBC',
+              'Platelets']
 
 def impute_A_features(df, cols, global_means):
   if len(df) < 3:
@@ -243,10 +243,13 @@ def extract_features_with_expanding_window(patient_dict: dict) -> pd.DataFrame:
     )
 
     del patient_dict
-    # 'results' is a list of lists (one list of dicts per patient). Flatten it:
-    all_expanded_features = chain.from_iterable(results)
     
-    feature_df = pd.DataFrame(all_expanded_features)
-    del all_expanded_features
+    print("Results Returned")
+    
+    # 'results' is a list of lists (one list of dicts per patient). Flatten it:
+    
+    feature_df = pd.DataFrame(chain.from_iterable(results))
+
+
     print("Final shape of expanded feature DataFrame:", feature_df.shape)
     return feature_df
