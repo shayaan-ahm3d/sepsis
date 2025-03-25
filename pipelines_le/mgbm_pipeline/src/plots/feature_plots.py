@@ -43,37 +43,38 @@ def plot_missingness(df: pd.DataFrame, title: str = "Missing Data Visualization"
     plt.tight_layout()
     plt.show()
 
-def plot_roc_auc(model, X_test, y_test):
+def plot_roc_auc(model, X_test, y_test, threshold=0.5):
     """
     Plots the ROC curve and prints the AUC for the subset of data where:
-      - The model predicted class 1, OR
+      - The model's prediction (based on the custom threshold) is 1, OR
       - The true label is 1.
     
     Parameters
     ----------
-    model  : trained classifier (e.g., XGBClassifier)
-    X_test : test features (DataFrame or array)
-    y_test : test labels (Series or array)
+    model      : trained classifier (e.g., XGBClassifier)
+    X_test     : test features (DataFrame or array)
+    y_test     : test labels (Series or array)
+    threshold  : float, optional (default=0.5)
+                 The probability threshold for converting predictions to class labels.
     """
-    # Get the model's hard predictions (0 or 1)
-    y_pred = model.predict(X_test)
+    # Obtain predicted probabilities for the positive class
+    y_probs = model.predict_proba(X_test)[:, 1]
+    # Apply the custom threshold to generate binary predictions
+    y_pred = (y_probs >= threshold).astype(int)
     
     # Identify the subset of rows to keep:
-    #   any row where the model predicted 1 (y_pred == 1)
-    #     OR the true label is 1 (y_test == 1)
+    # any row where the custom prediction is 1 OR the true label is 1
     subset_mask = (y_pred == 1) | (y_test == 1)
     
-    # Subset the data
+    # Subset the test data
     X_subset = X_test[subset_mask]
     y_subset = y_test[subset_mask]
     
     # Predicted probabilities on the subset
     y_probs_subset = model.predict_proba(X_subset)[:, 1]
     
-    # Compute ROC curve on the subset
-    fpr, tpr, thresholds = roc_curve(y_subset, y_probs_subset)
-    
-    # Calculate AUC on the subset
+    # Compute ROC curve and AUC on the subset
+    fpr, tpr, _ = roc_curve(y_subset, y_probs_subset)
     auc_val = roc_auc_score(y_subset, y_probs_subset)
     print(f"Subset ROC AUC (predicted=1 or actual=1): {auc_val:.3f}")
     
