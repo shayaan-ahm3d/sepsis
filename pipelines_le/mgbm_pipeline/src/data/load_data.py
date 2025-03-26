@@ -11,7 +11,7 @@ def loadFile(fileName: str) -> pd.DataFrame:
   return df
 
 
-def loadTrainingData(path_pattern='../training_setA/*.psv', max_files=None, ignore_columns=['Age', 'Gender', 'Unit1', 'Unit2', 'HospAdmTime', 'ICULOS']):
+def loadTrainingData(path_pattern='../training_setA/*.psv', max_files=None, ignore_columns=['Unit1', 'Unit2', 'HospAdmTime', 'ICULOS']):
   """
   Loads .psv files, removes the 6 columns before the sepsis label,
   and concatenates into a single DataFrame.
