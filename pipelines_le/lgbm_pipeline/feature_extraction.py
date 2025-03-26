@@ -44,12 +44,6 @@ def select_best_fill_methods(patients: dict[FillMethod, list[pd.DataFrame]]) -> 
 
 		correlation_matrices[method] = corr_matrix_sum.div(len(patients[method]), fill_value=1)
 		correlation_matrices[method].fillna(0, inplace=True)
-		# Save the mean correlation matrix as a heatmap figure
-		plt.figure(figsize=(10, 8))
-		sns.heatmap(correlation_matrices[method], annot=True, fmt=".2f", cmap="coolwarm", cbar=True)
-		plt.title(f"Mean Correlation Matrix - {method.name}")
-		plt.savefig(f"mean_correlation_matrix_{method.name.lower()}.png")
-		plt.close()
 
 	# Determine the best fill method for each feature
 	features_to_fill_methods: dict[str, FillMethod] = {}
