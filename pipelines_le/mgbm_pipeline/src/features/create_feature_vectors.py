@@ -141,6 +141,7 @@ def missingness_last_5_rows(rows: pd.DataFrame) -> dict:
     l0_sum = np.mean(all_seq_lengths)
     l0_var = np.var(all_seq_lengths)
     return {"L0_sum": l0_sum, "L0_var": l0_var}
+  
 
 
 def extract_features_for_patient(df: pd.DataFrame) -> dict:
@@ -178,28 +179,36 @@ def extract_features_for_patient(df: pd.DataFrame) -> dict:
 
     return feats
 
+def create_features_for_patient(df:pd.DataFrame) -> dict:
+  return None
 
 def extract_features_for_patient_with_windows(patient_id: int, df: pd.DataFrame, global_means: pd.Series) -> list:
     """
     For a single patient, extract features using an expanding window.
     For each row in the patient dataframe, features are extracted from the data
-    up to that point.
+    up to that point. The returned list contains dictionaries where each row
+    (dictionary) is a feature vector that includes:
+      - Features computed from the expanding window via extract_features_for_patient.
+      - The last row of the window (with its raw values, including SepsisLabel).
+      - The patient ID.
     """
     num_rows = len(df)
+    # Impute A_FEATURES before processing.
     df_imputed = impute_A_features(df.copy(), A_FEATURES, global_means)
     expanded_features = []
 
     for i in range(1, num_rows + 1):
+        # Create the expanding window up to row i
         partial_df = df_imputed.iloc[:i]
-        
-        feat_vector = partial_df.iloc[-1:]
-        
-        feat_vector.append(extract_features_for_patient(partial_df))
-        
-        feat_vector['SepsisLabel'] = df["SepsisLabel"].iloc[i - 1]
-        feat_vector["patient_id"] = patient_id
+        # Extract window-based features
+        features = extract_features_for_patient(partial_df)
+        # Get the last row of the current window (including SepsisLabel and raw values)
+        last_row = df_imputed.iloc[i - 1].to_dict()
+        # Combine the extracted features with the last row values
+        combined_features = {**features, **last_row}
+        combined_features["patient_id"] = patient_id
 
-        expanded_features.append(feat_vector)
+        expanded_features.append(combined_features)
 
     return expanded_features
 
