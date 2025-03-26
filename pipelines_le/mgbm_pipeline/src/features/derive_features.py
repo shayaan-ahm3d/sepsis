@@ -27,12 +27,6 @@ def sao2_fio2(data):
     """ SaO2/FiO2. """
     return data['SaO2'] / data['FiO2']
 
-
-def urea_creatinine(data):
-    """ BUN/Creatinine. """
-    return data['BUN'] / data['Creatinine']
-
-
 def pulse_pressure(data):
     """ SBP - DBP. """
     return data['SBP'] - data['DBP']
@@ -140,12 +134,6 @@ def compute_derived_features(row):
         features['sao2_fio2'] = np.nan
     else:
         features['sao2_fio2'] = sao2_fio2(row)
-
-    # Urea/Creatinine Ratio (same as BUN/Creatinine)
-    if pd.isnull(row.get('BUN')) or pd.isnull(row.get('Creatinine')) or row['Creatinine'] == 0:
-        features['urea_creatinine'] = np.nan
-    else:
-        features['urea_creatinine'] = urea_creatinine(row)
 
     # Pulse Pressure: SBP - DBP
     if pd.isnull(row.get('SBP')) or pd.isnull(row.get('DBP')):

@@ -4,7 +4,7 @@ from itertools import chain
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-from derive_features import compute_derived_features
+from src.features.derive_features import compute_derived_features
 
 # Feature definitions
 DEMOGRAPHIC_A = ['Age', 'Gender', 'Unit1', 'Unit2', 'HospAdmTime', 'ICULOS']
@@ -17,7 +17,8 @@ VITALS_B = [
 ]
 
 def impute_demographics(df):
-    df[DEMOGRAPHIC_A] = df[DEMOGRAPHIC_A].ffill().bfill()
+    existing_cols = [col for col in DEMOGRAPHIC_A if col in df.columns]
+    df[existing_cols] = df[existing_cols].ffill().bfill()
     return df
 
 def impute_features(df: pd.DataFrame, columns):
@@ -81,11 +82,9 @@ def extract_features_for_patient_with_windows(patient_id: int, df: pd.DataFrame)
     features = extract_features_for_patient(partial_df)
     # Get the last row of the current window (including SepsisLabel and raw values)
     last_row = df_imputed.iloc[i - 1].to_dict()
-    
-    derived_feats = compute_derived_features(df_imputed.iloc[i - 1])
-    
+    derived_features = compute_derived_features(last_row)
     # Combine the extracted features with the last row values
-    combined_features = {**features, **last_row, **derived_feats}
+    combined_features = {**features, **last_row, **derived_features}
     combined_features["patient_id"] = patient_id
 
     expanded_features.append(combined_features)
