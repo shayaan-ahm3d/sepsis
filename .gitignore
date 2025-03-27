@@ -175,3 +175,5 @@ cython_debug/
 
 feature_reduced_data/
 pipelines_le/mgbm_pipeline/src/feature_data.pkl
+pipelines_le/mgbm_pipeline/feature_data.pkl
+pipelines_le/mgbm_pipeline/feature_data_selective_fill.pkl
