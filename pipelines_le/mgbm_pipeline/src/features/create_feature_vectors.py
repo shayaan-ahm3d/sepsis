@@ -10,10 +10,10 @@ from src.features.derive_features import compute_derived_features
 DEMOGRAPHIC_A = ['Age', 'Gender', 'Unit1', 'Unit2', 'HospAdmTime', 'ICULOS']
 VITALS_A = ['HR', 'O2Sat', 'Temp', 'SBP', 'MAP', 'DBP', 'Resp']
 VITALS_B = [
-    'Temp', 'DBP', 'EtCO2', 'BaseExcess', 'HCO3', 'FiO2', 'pH', 'PaCO2',
-    'SaO2', 'AST', 'BUN', 'Calcium', 'Chloride', 'Creatinine', 'Glucose',
-    'Lactate', 'Magnesium', 'Phosphate', 'Potassium', 'Hct', 'Hgb', 'PTT',
-    'WBC', 'Platelets'
+    'BaseExcess', 'HCO3', 'FiO2', 'pH', 'PaCO2', 'SaO2', 'AST', 'BUN',
+    'Alkalinephos', 'Calcium', 'Chloride', 'Creatinine', 'Bilirubin_direct',
+    'Glucose', 'Lactate', 'Magnesium', 'Phosphate', 'Potassium', 'Bilirubin_total',
+    'TroponinI', 'Hct', 'Hgb', 'PTT', 'WBC', 'Fibrinogen', 'Platelets'
 ]
 
 def impute_demographics(df):
@@ -71,7 +71,7 @@ def extract_features_for_patient_with_windows(patient_id: int, df: pd.DataFrame)
   num_rows = len(df)
   
   # Impute A_FEATURES before processing.
-  df_imputed = impute_features(df.copy(), VITALS_A)
+  df_imputed = impute_features(df.copy(), VITALS_A + VITALS_B)
   df_imputed = impute_demographics(df_imputed)
   expanded_features = []
 
