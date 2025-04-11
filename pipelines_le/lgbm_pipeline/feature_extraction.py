@@ -1,9 +1,7 @@
 from enum import Enum, auto
 
 from tqdm import tqdm
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+import fireducks.pandas as pd
 
 class FillMethod(Enum):
 	FORWARD = auto()
@@ -13,47 +11,29 @@ class FillMethod(Enum):
 def fill(patients: list[pd.DataFrame], method=FillMethod.FORWARD) -> list[pd.DataFrame]:
 	filled_data: list[pd.DataFrame] = []
 	for patient in tqdm(patients, "Filling gaps in patient data"):
-		#patient.dropna(axis="columns", how="all", inplace=True)
 		if method == FillMethod.FORWARD:
-			filled_df: pd.DataFrame = patient.ffill(inplace=False)
-			filled_df.bfill(inplace=True)
-			filled_data.append(filled_df)
+			forward: pd.DataFrame = patient.ffill(inplace=False)
+			filled_data.append(forward.bfill(inplace=False))
 		elif method == FillMethod.BACKWARD:
-			filled_df = patient.bfill(inplace=False)
-			filled_df.ffill(inplace=True)
-			filled_data.append(filled_df)
+			backward = patient.bfill(inplace=False)
+			filled_data.append(backward.ffill(inplace=False))
 		elif method == FillMethod.LINEAR:
-			filled_df = patient.interpolate(inplace=False)
-			filled_df.ffill(inplace=True)
-			filled_df.bfill(inplace=True)
-			filled_data.append(filled_df)
+			interpolated = patient.interpolate(inplace=False)
+			forward = interpolated.ffill(inplace=False)
+			filled_data.append(forward.bfill(inplace=False))
 
 	return filled_data
 
-def correlation(correlation_matrices: dict[FillMethod, pd.DataFrame], fill_method: FillMethod, feature: str) -> float:
-	return correlation_matrices[fill_method][feature]["SepsisLabel"]
-
-def select_best_fill_methods(patients: dict[FillMethod, list[pd.DataFrame]]) -> dict[str, FillMethod]:
-	# Compute patient-by-patient correlation matrices
-	correlation_matrices: dict[FillMethod, pd.DataFrame] = {}
-
-	for method in tqdm(FillMethod, "Computing correlation matrices"):
-		corr_matrix_sum: pd.DataFrame = pd.DataFrame()
-		for patient in patients[method]:
-			corr_matrix_sum = corr_matrix_sum.add(patient.corr(), fill_value=0)
-
-		correlation_matrices[method] = corr_matrix_sum.div(len(patients[method]), fill_value=1)
-		correlation_matrices[method].fillna(0, inplace=True)
-
+def best_fill_method_for_feature(correlation_matrices: dict[FillMethod, pd.DataFrame], features: list[str]) -> dict[str, FillMethod]:
 	# Determine the best fill method for each feature
 	features_to_fill_methods: dict[str, FillMethod] = {}
 
-	for feature in tqdm(patients[FillMethod.FORWARD][0].columns, "Finding optimal fill methods"):
+	for feature in tqdm(features, "Finding optimal fill methods"):
 		max_corr: float = 0
 		best_method: FillMethod = FillMethod.FORWARD
 
 		for method in tqdm(FillMethod):
-			corr: float = correlation(correlation_matrices, method, feature)
+			corr: float = correlation_matrices[method][feature]["SepsisLabel"]
 			if abs(corr) > max_corr:
 				max_corr = corr
 				best_method = method
@@ -70,7 +50,7 @@ def mixed_fill(patients: list[pd.DataFrame],
 				  fill_methods_to_use: dict[str, FillMethod]) -> list[pd.DataFrame]:
 	patients_mixed: list[pd.DataFrame] = []
 
-	for i in tqdm(range(len(patients)), "Doing mixed fill"):
+	for i in tqdm(range(len(patients)), "Performing mixed fill"):
 		mixed_fill_df = pd.DataFrame(columns=patients[0].columns)
 
 		for feature in fill_methods_to_use:
@@ -82,4 +62,44 @@ def mixed_fill(patients: list[pd.DataFrame],
 				mixed_fill_df[feature] = patients_linear[i][feature]
 
 		patients_mixed.append(mixed_fill_df)
+
 	return patients_mixed
+
+def extract_pre_sepsis_window(patients: list[pd.DataFrame], window_hours: int = 6) -> list[pd.DataFrame]:
+    """
+    For patients who develop sepsis, extracts data from the specified hours before SepsisLabel turns to 1.
+    For patients who never develop sepsis, returns the original data unchanged.
+
+    Args:
+        patients: List of patient DataFrames
+        window_hours: Number of hours before sepsis onset to include
+
+    Returns:
+        List of DataFrames with either pre-sepsis window data or original data
+    """
+    result = []
+
+    for patient in tqdm(patients, "Processing pre-sepsis windows"):
+        # Check if patient ever develops sepsis
+        if not patient["SepsisLabel"].any():
+            # Do nothing for non-sepsis patients
+            result.append(patient)
+            continue
+
+        # Find the first time SepsisLabel turns to 1
+        sepsis_indices = patient[patient["SepsisLabel"] == 1].index
+        sepsis_onset_time = sepsis_indices[0]
+
+        # Define the window start time (window_hours before sepsis onset)
+        window_start = sepsis_onset_time - pd.Timedelta(hours=window_hours)
+
+        # If window starts before patient data, adjust to start of patient data
+        if window_start < patient.index[0]:
+            window_start = patient.index[0]
+
+        # Extract the window data (up to but not including the sepsis onset point)
+        window_data = patient.loc[window_start:sepsis_onset_time]
+
+        result.append(window_data)
+
+    return result

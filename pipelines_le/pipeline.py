@@ -11,9 +11,10 @@ from sklearn.metrics import fbeta_score, make_scorer, RocCurveDisplay, Confusion
 import lightgbm as lgbm
 import xgboost as xgb
 
+
+
 patients: list[pd.DataFrame] = loader.load_training_data(f"../training_set?/*.psv", max_files=None)
-# f = open("patients", "w")
-# pickle.dump(patients, f)
+
 
 sepsis_patients: list[pd.DataFrame] = []
 non_sepsis_patients: list[pd.DataFrame] = []
@@ -48,7 +49,10 @@ train_patients_linear: list[pd.DataFrame] = extractor.fill(train_patients, extra
 fill_method_to_train_patients: dict[extractor.FillMethod, list[pd.DataFrame]] = {extractor.FillMethod.FORWARD: train_patients_forward,
                               extractor.FillMethod.BACKWARD: train_patients_backward,
 							  extractor.FillMethod.LINEAR: train_patients_linear}
-fill_methods_to_use = extractor.select_best_fill_methods(fill_method_to_train_patients)
+
+
+
+fill_methods_to_use = extractor.best_fill_method_for_feature(fill_method_to_train_patients, cor)
 
 test_patients_forward: list[pd.DataFrame] = extractor.fill(test_patients, extractor.FillMethod.FORWARD)
 test_patients_backward: list[pd.DataFrame] = extractor.fill(test_patients, extractor.FillMethod.BACKWARD)
