@@ -46,12 +46,12 @@ def sliding_window_features(values: np.ndarray, window_sizes: list = [5, 11]) ->
     feat_dict[f"{w}_q05"] = np.quantile(padded, 0.05)
     feat_dict[f'{w}_energy'] = np.sum(np.square(padded))  
     
-    if len(padded) > 1:
-      x = np.arange(len(padded))
-      slope, _ = np.polyfit(x, padded, 1)
-      feat_dict[f'{w}_slope'] = slope
-    else:
-      feat_dict[f'{w}_slope'] = 0.0
+    # if len(padded) > 1:
+    #   x = np.arange(len(padded))
+    #   slope, _ = np.polyfit(x, padded, 1)
+    #   feat_dict[f'{w}_slope'] = slope
+    # else:
+    #   feat_dict[f'{w}_slope'] = 0.0
 
   return feat_dict
 
@@ -100,13 +100,6 @@ def extract_features_with_expanding_window(patient_dict: dict) -> pd.DataFrame:
           for pid, df in tqdm(patient_dict.items(), desc="Extracting features with expanding window")
       )
   ))
-  
-  # all_features = []
-  # for pid, df in tqdm(patient_dict.items(), desc="Extracting features with expanding window"):
-  #   patient_features = extract_features_for_patient_with_windows(pid, df)
-  #   all_features.extend(patient_features)
-
-  # feature_df = pd.DataFrame(all_features)
   
   print("Final shape of expanded feature DataFrame:", feature_df.shape)
   return feature_df
