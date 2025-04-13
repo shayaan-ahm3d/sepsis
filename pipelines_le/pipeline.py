@@ -1,203 +1,130 @@
-import marimo
+import lgbm_pipeline.feature_load as loader
+import lgbm_pipeline.feature_extraction as extractor
+import lgbm_pipeline.src.features.feature_engineer as engineer
+import mgbm_pipeline.src.features.derive_features as derive
+import os
+from tqdm import tqdm
+import polars as pl
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import fbeta_score, make_scorer, RocCurveDisplay, ConfusionMatrixDisplay, classification_report
+from sklearn.utils import shuffle
+import seaborn as sns
+import xgboost as xgb
 
-__generated_with = "0.12.8"
-app = marimo.App()
+VITALS = ['HR', 'O2Sat', 'Temp', 'SBP', 'MAP', 'DBP', 'Resp', 'EtCO2']
+LABS = [
+    'BaseExcess', 'HCO3', 'FiO2', 'pH', 'PaCO2', 'SaO2', 'AST', 'BUN',
+    'Alkalinephos', 'Calcium', 'Chloride', 'Creatinine', 'Bilirubin_direct',
+    'Glucose', 'Lactate', 'Magnesium', 'Phosphate', 'Potassium', 'Bilirubin_total',
+    'TroponinI', 'Hct', 'Hgb', 'PTT', 'WBC', 'Fibrinogen', 'Platelets'
+]
+DEMOGRAPHICS = ['Age', 'Gender']
+DROPS = ['Unit1', 'Unit2', 'HospAdmTime', 'ICULOS']
+OUTCOME = 'SepsisLabel'
 
+FEATURES = VITALS + LABS + DEMOGRAPHICS
 
-@app.cell
-def _():
-    import lgbm_pipeline.feature_load as loader
-    import lgbm_pipeline.feature_extraction as extractor
+patients: list[pl.DataFrame] = loader.load_data("../training_set?/*.psv", max_files=None)
 
-    from tqdm import tqdm
-    import fireducks.pandas as pd
-    # magic command not supported in marimo; please file an issue to add support
-    # %load_ext fireducks.ipyext
-    from sklearn.model_selection import train_test_split, StratifiedKFold
-    from sklearn.metrics import fbeta_score, make_scorer, RocCurveDisplay, ConfusionMatrixDisplay, classification_report
-    import xgboost as xgb
-    return (
-        ConfusionMatrixDisplay,
-        RocCurveDisplay,
-        StratifiedKFold,
-        classification_report,
-        extractor,
-        fbeta_score,
-        loader,
-        make_scorer,
-        pd,
-        tqdm,
-        train_test_split,
-        xgb,
-    )
+# # Train/test split
+# Ensure enough sepsis patient representation in train and test sets
 
+sepsis_patients: list[pl.DataFrame] = []
+non_sepsis_patients: list[pl.DataFrame] = []
 
-@app.cell
-def _(loader):
-    patients = loader.load_data("../training_set?/*.psv", max_files=None)
-    return (patients,)
+for patient in tqdm(patients, "Splitting sepsis/non-sepsis patients"):
+	if patient["SepsisLabel"].any():
+		sepsis_patients.append(patient)
+	else:
+		non_sepsis_patients.append(patient)
 
+train_sepsis_patients, test_sepsis_patients = train_test_split(sepsis_patients, random_state=42)
+train_non_sepsis_patients, test_non_sepsis_patients = train_test_split(non_sepsis_patients, random_state=42)
 
-@app.cell
-def _(patients, pd):
-    patients_1 = pd.concat(patients)
-    return (patients_1,)
+ratio: float = len(train_non_sepsis_patients) / len(train_sepsis_patients)
+print(f"Ratio: {ratio}")
 
+train_patients: list[pl.DataFrame] = train_sepsis_patients + train_non_sepsis_patients
+test_patients: list[pl.DataFrame] = test_sepsis_patients + test_non_sepsis_patients
 
-@app.cell
-def _(patients_1, pd, tqdm):
-    sepsis_patients: list[pd.DataFrame] = []
-    non_sepsis_patients: list[pd.DataFrame] = []
-    for _patient in tqdm(patients_1, 'Splitting sepsis/non-sepsis'):
-        if _patient['SepsisLabel'].any():
-            sepsis_patients.append(_patient)
-        else:
-            non_sepsis_patients.append(_patient)
-    return non_sepsis_patients, sepsis_patients
+print(f"Number of sepsis patients in training set: {len(train_sepsis_patients)}")
+print(f"Number of non-sepsis patients in training set: {len(train_non_sepsis_patients)}")
+print(f"Number of patients in training set: {len(train_patients)}\n")
+print(f"Number of sepsis patients in testing set: {len(test_sepsis_patients)}")
+print(f"Number of non-sepsis patients in testing set: {len(test_non_sepsis_patients)}")
+print(f"Number of patients in testing set: {len(test_patients)}")
 
+# # Data imputation
 
-@app.cell
-def _(non_sepsis_patients, sepsis_patients, train_test_split):
-    train_sepsis_patients, test_sepsis_patients = train_test_split(sepsis_patients, random_state=42)
-    train_non_sepsis_patients, test_non_sepsis_patients = train_test_split(non_sepsis_patients, random_state=42)
-    return (
-        test_non_sepsis_patients,
-        test_sepsis_patients,
-        train_non_sepsis_patients,
-        train_sepsis_patients,
-    )
+train_patients_forward = extractor.fill(train_patients, extractor.FillMethod.FORWARD)
+train_patients_backward = extractor.fill(train_patients, extractor.FillMethod.BACKWARD)
+train_patients_linear = extractor.fill(train_patients, extractor.FillMethod.LINEAR)
 
+fill_to_list: dict[extractor.FillMethod, list[pl.DataFrame]] = {
+	extractor.FillMethod.FORWARD : train_patients_forward,
+	extractor.FillMethod.BACKWARD: train_patients_backward,
+	extractor.FillMethod.LINEAR  : train_patients_linear,
+    }
 
-@app.cell
-def _(train_non_sepsis_patients, train_sepsis_patients):
-    from sklearn.utils import shuffle
-    train_non_sepsis_patients_1 = shuffle(train_non_sepsis_patients, random_state=42, n_samples=len(train_sepsis_patients))
-    return shuffle, train_non_sepsis_patients_1
+fill_to_concat: dict[extractor.FillMethod, pl.DataFrame] = {
+	extractor.FillMethod.FORWARD : pl.concat(train_patients_forward, how="vertical"),
+	extractor.FillMethod.BACKWARD: pl.concat(train_patients_backward, how="vertical"),
+	extractor.FillMethod.LINEAR  : pl.concat(train_patients_linear, how="vertical"),
+    }
 
-
-@app.cell
-def _(
-    pd,
-    test_non_sepsis_patients,
-    test_sepsis_patients,
-    train_non_sepsis_patients_1,
-    train_sepsis_patients,
-):
-    ratio: float = len(train_non_sepsis_patients_1) / len(train_sepsis_patients)
-    print(f'Ratio: {ratio}')
-    train_patients: list[pd.DataFrame] = train_sepsis_patients + train_non_sepsis_patients_1
-    test_patients: list[pd.DataFrame] = test_sepsis_patients + test_non_sepsis_patients
-    print(f'Number of sepsis patients in training set: {len(train_sepsis_patients)}')
-    print(f'Number of non-sepsis patients in training set: {len(train_non_sepsis_patients_1)}')
-    print(f'Number of patients in training set: {len(train_patients)}\n')
-    print(f'Number of sepsis patients in testing set: {len(test_sepsis_patients)}')
-    print(f'Number of non-sepsis patients in testing set: {len(test_non_sepsis_patients)}')
-    print(f'Number of patients in testing set: {len(test_patients)}')
-    return ratio, test_patients, train_patients
+fill_to_corr = {
+	extractor.FillMethod.FORWARD : fill_to_concat[extractor.FillMethod.FORWARD].to_pandas().corr(),
+	extractor.FillMethod.BACKWARD: fill_to_concat[extractor.FillMethod.BACKWARD].to_pandas().corr(),
+	extractor.FillMethod.LINEAR  : fill_to_concat[extractor.FillMethod.LINEAR].to_pandas().corr(),
+    }
 
 
-@app.cell
-def _(extractor, pd, train_patients):
-    train_patients_forward: list[pd.DataFrame] = extractor.fill(train_patients, extractor.FillMethod.FORWARD)
-    train_patients_backward: list[pd.DataFrame] = extractor.fill(train_patients, extractor.FillMethod.BACKWARD)
-    train_patients_linear: list[pd.DataFrame] = extractor.fill(train_patients, extractor.FillMethod.LINEAR)
-    return (
-        train_patients_backward,
-        train_patients_forward,
-        train_patients_linear,
-    )
+fill_methods_to_use: dict[str, extractor.FillMethod] = extractor.best_fill_method_for_feature(fill_to_corr,FEATURES)
+train_patients_mixed: list[pl.DataFrame] = extractor.mixed_fill(train_patients,fill_to_list,fill_methods_to_use)
 
+test_patients_forward: list[pl.DataFrame] = extractor.fill(test_patients, extractor.FillMethod.FORWARD)
+test_patients_backward: list[pl.DataFrame] = extractor.fill(test_patients, extractor.FillMethod.BACKWARD)
+test_patients_linear: list[pl.DataFrame] = extractor.fill(test_patients, extractor.FillMethod.LINEAR)
 
-@app.cell
-def _(
-    extractor,
-    pd,
-    train_patients,
-    train_patients_backward,
-    train_patients_forward,
-    train_patients_linear,
-):
-    fill_method_to_train_patients: dict[extractor.FillMethod, list[pd.DataFrame]] = {
-    	extractor.FillMethod.FORWARD : train_patients_forward,
-    	extractor.FillMethod.BACKWARD: train_patients_backward,
-    	extractor.FillMethod.LINEAR  : train_patients_linear}
-    fill_methods_to_use: dict[str, extractor.FillMethod] = extractor.best_fill_method_for_feature(
-    	fill_method_to_train_patients)
-    train_patients_mixed: list[pd.DataFrame] = extractor.mixed_fill(train_patients, train_patients_forward,
-                                                                    train_patients_backward, train_patients_linear,
-                                                                    fill_methods_to_use)
-    return (
-        fill_method_to_train_patients,
-        fill_methods_to_use,
-        train_patients_mixed,
-    )
+fill_method_to_test_patients: dict[extractor.FillMethod, list[pl.DataFrame]] = {
+	extractor.FillMethod.FORWARD : test_patients_forward,
+	extractor.FillMethod.BACKWARD: test_patients_backward,
+	extractor.FillMethod.LINEAR  : test_patients_linear,
+    }
 
+test_patients_mixed: list[pl.DataFrame] = extractor.mixed_fill(test_patients,fill_method_to_test_patients,fill_methods_to_use)
 
-@app.cell
-def _(extractor, fill_methods_to_use, pd, test_patients):
-    test_patients_forward: list[pd.DataFrame] = extractor.fill(test_patients, extractor.FillMethod.FORWARD)
-    test_patients_backward: list[pd.DataFrame] = extractor.fill(test_patients, extractor.FillMethod.BACKWARD)
-    test_patients_linear: list[pd.DataFrame] = extractor.fill(test_patients, extractor.FillMethod.LINEAR)
-    test_patients_mixed: list[pd.DataFrame] = extractor.mixed_fill(test_patients, test_patients_forward,
-                                                                   test_patients_backward, test_patients_linear,
-                                                                   fill_methods_to_use)
-    return (
-        test_patients_backward,
-        test_patients_forward,
-        test_patients_linear,
-        test_patients_mixed,
-    )
+# Down sample non-sepsis patient data
 
+mixed_sepsis = []
+mixed_non_sepsis = []
 
-@app.cell
-def _(create_windows, test_patients_mixed, train_patients_mixed):
-    for _patient in train_patients_mixed:
-        create_windows(_patient)
-    for _patient in test_patients_mixed:
-        create_windows(_patient)
-    return
+for patient in tqdm(train_patients_mixed, "Splitting sepsis/non-sepsis patients"):
+	if patient["SepsisLabel"].any():
+		mixed_sepsis.append(patient)
+	else:
+		mixed_non_sepsis.append(patient)
 
+mixed_non_sepsis = shuffle(mixed_non_sepsis, random_state=42, n_samples=2*len(mixed_sepsis))
+final_train = mixed_non_sepsis + mixed_sepsis
 
-@app.cell
-def _(pd, test_patients_mixed, train_patients_mixed):
-    train = pd.concat(train_patients_mixed)
-    test = pd.concat(test_patients_mixed)
+train = derive.compute_derived_features_polars(pl.concat(final_train, how="vertical"))
+test = derive.compute_derived_features_polars(pl.concat(test_patients_mixed, how="vertical"))
 
-    X_train = train.drop(columns="SepsisLabel", inplace=False)
-    y_train = train["SepsisLabel"]
-    X_test = test.drop(columns="SepsisLabel", inplace=False)
-    y_test = test["SepsisLabel"]
-    return X_test, X_train, test, train, y_test, y_train
+X_train = train.drop("SepsisLabel")
+y_train = train["SepsisLabel"]
+X_test = test.drop("SepsisLabel")
+y_test = test["SepsisLabel"]
 
+f = make_scorer(fbeta_score, beta=5.5)
 
-@app.cell
-def _(X_train, fbeta_score, make_scorer, ratio, xgb, y_train):
-    f = make_scorer(fbeta_score, beta=5.5)
+clf = xgb.XGBClassifier(objective="binary:logistic", eval_metric="auc", scale_pos_weight=ratio)
+bst = clf.fit(X_train, y_train)
 
-    clf = xgb.XGBClassifier(objective="binary:logistic", eval_metric="auc", scale_pos_weight=ratio)
-    bst = clf.fit(X_train, y_train)
-    return bst, clf, f
+y_pred = bst.predict(X_test)
 
-
-@app.cell
-def _(X_test, bst):
-    y_pred = bst.predict(X_test)
-    return (y_pred,)
-
-
-@app.cell
-def _(
-    ConfusionMatrixDisplay,
-    RocCurveDisplay,
-    classification_report,
-    y_pred,
-    y_test,
-):
-    RocCurveDisplay.from_predictions(y_test, y_pred)
-    ConfusionMatrixDisplay.from_predictions(y_test, y_pred)
-    print(classification_report(y_test, y_pred))
-    return
-
-
-if __name__ == "__main__":
-    app.run()
+RocCurveDisplay.from_predictions(y_test, y_pred)
+ConfusionMatrixDisplay.from_predictions(y_test, y_pred)
+print(classification_report(y_test, y_pred))
