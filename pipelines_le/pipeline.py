@@ -22,7 +22,7 @@ OUTCOME = 'SepsisLabel'
 
 FEATURES = VITALS + LABS + DEMOGRAPHICS
 
-patients: list[pl.DataFrame] = loader.load_data("../training_set?/*.psv", max_files=None)
+patients: list[pl.DataFrame] = loader.load_data("training_set?/*.psv", max_files=None)
 
 # Train/test split
 # Ensure enough sepsis patient representation in train and test sets
