@@ -158,30 +158,51 @@ def _compute_derived_features(row):
     return features
 
 def compute_derived_features_polars(df: pl.DataFrame) -> pl.DataFrame:
-    df =  df.with_columns([
-            # Shock Index
-            (pl.col("HR") / pl.col("SBP")).alias("ShockIndex"),
-            
-            # Age Normalised Shock Index
-            (pl.col("HR") / (pl.col("SBP") * pl.col("Age"))).alias("AgeNormalisedShockIndex"),
-            
-            # Modified Shock Index
-            (pl.col("HR") / (pl.col("MAP") * pl.col("Age"))).alias("ModifiedShockIndex"),
-            
-            # BUN/Creatinine Ratio
-            (pl.col("BUN") / pl.col("Creatinine")).alias("UCR"),
-            
-            # SaO2/FiO2 Ratio 
-            (pl.col("SaO2") / pl.col("FiO2")).alias("SaO2_FiO2"),
-            
-            # Pulse Pressure
-            (pl.col("SBP") - pl.col("DBP")).alias("PulsePressure"),
-        ])
-    
+    df = df.with_columns([
+        # Shock Index
+        (pl.when(pl.col("SBP") > 0)
+         .then(pl.col("HR") / pl.col("SBP"))
+         .otherwise(None))
+         .cast(pl.Float32)
+         .alias("ShockIndex"),
+        
+        # Age Normalised Shock Index
+        (pl.when((pl.col("SBP") > 0) & (pl.col("Age") > 0))
+         .then(pl.col("HR") / (pl.col("SBP") * pl.col("Age")))
+         .otherwise(None))
+         .cast(pl.Float32)
+         .alias("AgeNormalisedShockIndex"),
+        
+        # Modified Shock Index
+        (pl.when((pl.col("MAP") > 0) & (pl.col("Age") > 0))
+         .then(pl.col("HR") / (pl.col("MAP") * pl.col("Age")))
+         .otherwise(None)).alias("ModifiedShockIndex"),
+        
+        # BUN/Creatinine Ratio
+        (pl.when(pl.col("Creatinine") > 0)
+         .then(pl.col("BUN") / pl.col("Creatinine"))
+         .otherwise(None))
+         .cast(pl.Float32)
+         .alias("UCR"),
+        
+        # SaO2/FiO2 Ratio 
+        (pl.when(pl.col("FiO2") > 0)
+         .then(pl.col("SaO2") / pl.col("FiO2"))
+         .otherwise(None))
+         .cast(pl.Float32)
+         .alias("SaO2_FiO2"),
+        
+        # Pulse Pressure
+        (pl.col("SBP") - pl.col("DBP"))
+        .cast(pl.Float32)
+        .alias("PulsePressure"),
+    ])
     
     # Add cardiac output (requires pulse_pressure)
     df = df.with_columns(
-        (pl.col("PulsePressure") * pl.col("HR")).alias("CardiacOutput")
+        (pl.col("PulsePressure") * pl.col("HR"))
+        .cast(pl.Float32)
+        .alias("CardiacOutput")
     )
     
     # Calculate SOFA
@@ -208,7 +229,7 @@ def compute_derived_features_polars(df: pl.DataFrame) -> pl.DataFrame:
         .when((df["Creatinine"] > 3.4) & (df["Creatinine"] <= 4.9)).then(3)
         .when(df["Creatinine"] > 4.9).then(4)
         .otherwise(0)
-    ).alias("PartialSOFA")
+    ).cast(pl.Float32).alias("PartialSOFA")
     
     # Calculate qSOFA (Quick SOFA)
     qsofa = (
@@ -218,9 +239,7 @@ def compute_derived_features_polars(df: pl.DataFrame) -> pl.DataFrame:
         pl.when(df["SBP"] <= 100).then(1).otherwise(0) +
         # Respiratory rate component
         pl.when(df["Resp"] >= 22).then(1).otherwise(0)
-        # Note: The third qSOFA component is altered mental status (GCS<15)
-        # but this appears to be missing from the dataset
-    ).alias("qSOFA")
+    ).cast(pl.Float32).alias("qSOFA")
 
     # Add SOFA score
     df = df.with_columns([sofa, qsofa])

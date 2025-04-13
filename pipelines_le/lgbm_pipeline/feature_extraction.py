@@ -37,8 +37,7 @@ def best_fill_method_for_feature(correlation_matrices, features: list[str]) -> d
 		best_method: FillMethod = FillMethod.FORWARD
 
 		for method in tqdm(FillMethod):
-			print(f"Series: {correlation_matrices[method][feature]} = {correlation_matrices[method][feature][-1]}")
-			corr: float = correlation_matrices[method][feature][-1]
+			corr: float = correlation_matrices[method][feature]["SepsisLabel"]
 			if abs(corr) > max_corr:
 				max_corr = corr
 				best_method = method
@@ -49,12 +48,11 @@ def best_fill_method_for_feature(correlation_matrices, features: list[str]) -> d
 	return features_to_fill_methods
 
 
-def mixed_fill(patients: list[pl.DataFrame],
-               fill_methods_to_patients: dict[FillMethod, list[pl.DataFrame]],
+def mixed_fill(fill_methods_to_patients: dict[FillMethod, list[pl.DataFrame]],
                fill_method_for_features: dict[str, FillMethod]) -> list[pl.DataFrame]:
 	patients_mixed: list[pl.DataFrame] = []
 
-	for i in tqdm(range(len(patients)), "Performing mixed fill"):
+	for i in tqdm(range(len(fill_methods_to_patients[FillMethod.FORWARD])), "Performing mixed fill"):
 		mixed_fill_df = pl.DataFrame()
 
 		for feature in fill_method_for_features:
@@ -62,6 +60,8 @@ def mixed_fill(patients: list[pl.DataFrame],
 			filled_column = fill_methods_to_patients[fill_method_for_features[feature]][i].select(feature)
 			mixed_fill_df = mixed_fill_df.with_columns(filled_column)
 
+		# Add the SepsisLabel column from the original patient DataFrame
+		mixed_fill_df = mixed_fill_df.with_columns(fill_methods_to_patients[FillMethod.FORWARD][i].select("SepsisLabel"))
 		patients_mixed.append(mixed_fill_df)
 
 	return patients_mixed
