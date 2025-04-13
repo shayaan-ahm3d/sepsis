@@ -5,7 +5,7 @@ import mgbm_pipeline.src.features.derive_features as derive
 from tqdm import tqdm
 import polars as pl
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import fbeta_score, make_scorer, RocCurveDisplay, ConfusionMatrixDisplay, classification_report
+from sklearn.metrics import fbeta_score, make_scorer, classification_report
 from sklearn.utils import shuffle
 import xgboost as xgb
 
@@ -52,7 +52,7 @@ print(f"Number of sepsis patients in testing set: {len(test_sepsis_patients)}")
 print(f"Number of non-sepsis patients in testing set: {len(test_non_sepsis_patients)}")
 print(f"Number of patients in testing set: {len(test_patients)}")
 
-# # Data imputation
+# Data imputation
 
 train_patients_forward = extractor.fill(train_patients, extractor.FillMethod.FORWARD)
 train_patients_backward = extractor.fill(train_patients, extractor.FillMethod.BACKWARD)
@@ -76,7 +76,6 @@ fill_to_corr = {
 	extractor.FillMethod.LINEAR  : fill_to_concat[extractor.FillMethod.LINEAR].to_pandas().corr(),
     }
 
-
 fill_methods_to_use: dict[str, extractor.FillMethod] = extractor.best_fill_method_for_feature(fill_to_corr,FEATURES)
 train_patients_mixed: list[pl.DataFrame] = extractor.mixed_fill(train_patients,fill_to_list,fill_methods_to_use)
 
@@ -90,7 +89,7 @@ fill_method_to_test_patients: dict[extractor.FillMethod, list[pl.DataFrame]] = {
 	extractor.FillMethod.LINEAR  : test_patients_linear,
     }
 
-test_patients_mixed: list[pl.DataFrame] = extractor.mixed_fill(test_patients,fill_method_to_test_patients,fill_methods_to_use)
+test_patients_mixed: list[pl.DataFrame] = extractor.mixed_fill(test_patients, fill_method_to_test_patients, fill_methods_to_use)
 
 # Down sample non-sepsis patient data
 
@@ -110,9 +109,9 @@ train = derive.compute_derived_features_polars(pl.concat(final_train, how="verti
 test = derive.compute_derived_features_polars(pl.concat(test_patients_mixed, how="vertical"))
 
 X_train = train.drop("SepsisLabel")
-y_train = train["SepsisLabel"]
+y_train = train.select("SepsisLabel")
 X_test = test.drop("SepsisLabel")
-y_test = test["SepsisLabel"]
+y_test = test.select("SepsisLabel")
 
 f = make_scorer(fbeta_score, beta=5.5)
 

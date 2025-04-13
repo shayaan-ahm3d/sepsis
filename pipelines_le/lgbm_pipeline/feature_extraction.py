@@ -55,10 +55,12 @@ def mixed_fill(patients: list[pl.DataFrame],
 	patients_mixed: list[pl.DataFrame] = []
 
 	for i in tqdm(range(len(patients)), "Performing mixed fill"):
-		mixed_fill_df = pl.DataFrame(schema=patients[0].columns)
+		mixed_fill_df = pl.DataFrame()
 
 		for feature in fill_method_for_features:
-			mixed_fill_df[feature] = fill_methods_to_patients[fill_method_for_features[feature]][i].select(feature)
+			# Select the optimally filled column for the current feature and add it to the DataFrame
+			filled_column = fill_methods_to_patients[fill_method_for_features[feature]][i].select(feature)
+			mixed_fill_df = mixed_fill_df.with_columns(filled_column)
 
 		patients_mixed.append(mixed_fill_df)
 
