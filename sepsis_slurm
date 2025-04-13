@@ -1,0 +1,21 @@
+#!/bin/bash
+
+#SBATCH --job-name=sepsis
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=28
+#SBATCH --cpus-per-task=1
+#SBATCH --time=00:30:00
+#SBATCH --partition=veryshort
+#SBATCH --account=COMS035204
+#SBATCH --output=out/sepsis-%j.out
+#SBATCH --exclusive
+echo Running on host `hostname`
+echo Time is `date`
+echo Directory is `pwd`
+echo Slurm job ID is $SLURM_JOB_ID
+echo This job runs on the following machines:
+echo `echo $SLURM_JOB_NODELIST | uniq`
+source ~/.bashrc
+mamba activate sepsis
+cd sepsis/pipelines_le/
+python pipeline.py
