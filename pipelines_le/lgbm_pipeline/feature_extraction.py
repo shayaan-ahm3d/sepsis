@@ -27,7 +27,7 @@ def fill(patients: list[pl.DataFrame], method=FillMethod.FORWARD) -> list[pl.Dat
 	return filled_data
 
 
-def best_fill_method_for_feature(correlation_matrices: dict[FillMethod, pl.DataFrame], features: list[str]) -> dict[
+def best_fill_method_for_feature(correlation_matrices, features: list[str]) -> dict[
 	str, FillMethod]:
 	# Determine the best fill method for each feature
 	features_to_fill_methods: dict[str, FillMethod] = {}
