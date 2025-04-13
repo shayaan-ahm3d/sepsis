@@ -58,7 +58,7 @@ def mixed_fill(patients: list[pl.DataFrame],
 		mixed_fill_df = pl.DataFrame(schema=patients[0].columns)
 
 		for feature in fill_method_for_features:
-			mixed_fill_df[feature] = fill_methods_to_patients[fill_method_for_features[feature]][i].select(feature)
+			mixed_fill_df.with_columns(feature) = fill_methods_to_patients[fill_method_for_features[feature]][i].with_columns(feature)
 
 		patients_mixed.append(mixed_fill_df)
 
