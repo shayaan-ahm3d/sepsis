@@ -1,16 +1,12 @@
 import lgbm_pipeline.feature_load as loader
 import lgbm_pipeline.feature_extraction as extractor
-import lgbm_pipeline.src.features.feature_engineer as engineer
 import mgbm_pipeline.src.features.derive_features as derive
-import os
+
 from tqdm import tqdm
 import polars as pl
-import matplotlib.pyplot as plt
-import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import fbeta_score, make_scorer, RocCurveDisplay, ConfusionMatrixDisplay, classification_report
 from sklearn.utils import shuffle
-import seaborn as sns
 import xgboost as xgb
 
 VITALS = ['HR', 'O2Sat', 'Temp', 'SBP', 'MAP', 'DBP', 'Resp', 'EtCO2']
@@ -28,7 +24,7 @@ FEATURES = VITALS + LABS + DEMOGRAPHICS
 
 patients: list[pl.DataFrame] = loader.load_data("../training_set?/*.psv", max_files=None)
 
-# # Train/test split
+# Train/test split
 # Ensure enough sepsis patient representation in train and test sets
 
 sepsis_patients: list[pl.DataFrame] = []
@@ -125,6 +121,4 @@ bst = clf.fit(X_train, y_train)
 
 y_pred = bst.predict(X_test)
 
-RocCurveDisplay.from_predictions(y_test, y_pred)
-ConfusionMatrixDisplay.from_predictions(y_test, y_pred)
 print(classification_report(y_test, y_pred))
