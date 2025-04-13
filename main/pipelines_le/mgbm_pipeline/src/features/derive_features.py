@@ -1,46 +1,45 @@
 import numpy as np
 import pandas as pd
-import polars as pl
 
 # --- Existing functions (unchanged) ---
 
-def _shock_index(data):
+def shock_index(data):
     """ HR/SBP ratio. """
     return data['HR'] / data['SBP']
 
 
-def _age_normalised_shock_index(data):
+def age_normalised_shock_index(data):
     """ HR/(SBP * Age). """
     return data['HR'] / (data['SBP'] * data['Age'])
 
 
-def _modfied_shock_index(data):
+def modfied_shock_index(data):
     """ HR/(MAP * Age). """
     return data['HR'] / (data['MAP'] * data['Age'])
 
 
-def _bun_cr(data):
+def bun_cr(data):
     """ BUN/Creatinine. """
     return data['BUN'] / data['Creatinine']
 
 
-def _sao2_fio2(data):
+def sao2_fio2(data):
     """ SaO2/FiO2. """
     return data['SaO2'] / data['FiO2']
 
-def _pulse_pressure(data):
+def pulse_pressure(data):
     """ SBP - DBP. """
     return data['SBP'] - data['DBP']
 
 
-def _cardiac_output(data):
+def cardiac_output(data):
     """ Pulse Pressure * HR. """
     pp = data['SBP'] - data['DBP']
     return pp * data['HR']
 
 
 # --- Modified partial_sofa for a single row ---
-def _partial_sofa(data):
+def partial_sofa(data):
     """
     Partial SOFA score calculated from a single row.
     Requires: 'Platelets', 'Bilirubin_total', 'MAP', 'Creatinine'
@@ -92,7 +91,7 @@ def _partial_sofa(data):
 
 
 # --- Wrapper function that calls the above functions safely ---
-def _compute_derived_features(row):
+def compute_derived_features(row):
     """
     Given a row (pd.Series) containing clinical data, compute a set of derived features.
     For each feature, if a required key is missing or (for ratios) the denominator is 0,
@@ -108,121 +107,51 @@ def _compute_derived_features(row):
     if pd.isnull(row.get('HR')) or pd.isnull(row.get('SBP')) or row['SBP'] == 0:
         features['shock_index'] = np.nan
     else:
-        features['shock_index'] = _shock_index(row)
+        features['shock_index'] = shock_index(row)
 
     # Age Normalised Shock Index: HR/(SBP * Age)
     if (pd.isnull(row.get('HR')) or pd.isnull(row.get('SBP')) or 
         pd.isnull(row.get('Age')) or row['SBP'] == 0):
         features['age_normalised_shock_index'] = np.nan
     else:
-        features['age_normalised_shock_index'] = _age_normalised_shock_index(row)
+        features['age_normalised_shock_index'] = age_normalised_shock_index(row)
 
     # Modified Shock Index: HR/(MAP * Age)
     if (pd.isnull(row.get('HR')) or pd.isnull(row.get('MAP')) or 
         pd.isnull(row.get('Age')) or row['MAP'] == 0):
         features['modified_shock_index'] = np.nan
     else:
-        features['modified_shock_index'] = _modfied_shock_index(row)
+        features['modified_shock_index'] = modfied_shock_index(row)
 
     # BUN/Creatinine Ratio
     if pd.isnull(row.get('BUN')) or pd.isnull(row.get('Creatinine')) or row['Creatinine'] == 0:
         features['bun_cr'] = np.nan
     else:
-        features['bun_cr'] = _bun_cr(row)
+        features['bun_cr'] = bun_cr(row)
 
     # SaO2/FiO2 Ratio
     if pd.isnull(row.get('SaO2')) or pd.isnull(row.get('FiO2')) or row['FiO2'] == 0:
         features['sao2_fio2'] = np.nan
     else:
-        features['sao2_fio2'] = _sao2_fio2(row)
+        features['sao2_fio2'] = sao2_fio2(row)
 
     # Pulse Pressure: SBP - DBP
     if pd.isnull(row.get('SBP')) or pd.isnull(row.get('DBP')):
         features['pulse_pressure'] = np.nan
     else:
-        features['pulse_pressure'] = _pulse_pressure(row)
+        features['pulse_pressure'] = pulse_pressure(row)
 
     # Cardiac Output Estimate: (SBP - DBP) * HR
     if pd.isnull(row.get('SBP')) or pd.isnull(row.get('DBP')) or pd.isnull(row.get('HR')):
         features['cardiac_output'] = np.nan
     else:
-        features['cardiac_output'] = _cardiac_output(row)
+        features['cardiac_output'] = cardiac_output(row)
 
     # Partial SOFA Score:
     required_sofa_keys = ['Platelets', 'Bilirubin_total', 'MAP', 'Creatinine']
     if any(pd.isnull(row.get(key)) for key in required_sofa_keys):
         features['partial_sofa'] = np.nan
     else:
-        features['partial_sofa'] = _partial_sofa(row)
+        features['partial_sofa'] = partial_sofa(row)
 
     return features
-
-def compute_derived_features_polars(df: pl.DataFrame) -> pl.DataFrame:
-    df =  df.with_columns([
-            # Shock Index
-            (pl.col("HR") / pl.col("SBP")).alias("ShockIndex"),
-            
-            # Age Normalised Shock Index
-            (pl.col("HR") / (pl.col("SBP") * pl.col("Age"))).alias("AgeNormalisedShockIndex"),
-            
-            # Modified Shock Index
-            (pl.col("HR") / (pl.col("MAP") * pl.col("Age"))).alias("ModifiedShockIndex"),
-            
-            # BUN/Creatinine Ratio
-            (pl.col("BUN") / pl.col("Creatinine")).alias("UCR"),
-            
-            # SaO2/FiO2 Ratio 
-            (pl.col("SaO2") / pl.col("FiO2")).alias("SaO2_FiO2"),
-            
-            # Pulse Pressure
-            (pl.col("SBP") - pl.col("DBP")).alias("PulsePressure"),
-        ])
-    
-    
-    # Add cardiac output (requires pulse_pressure)
-    df = df.with_columns(
-        (pl.col("PulsePressure") * pl.col("HR")).alias("CardiacOutput")
-    )
-    
-    # Calculate SOFA
-    sofa = (
-        # Start with 0
-        pl.lit(0) + 
-        # Platelets component
-        pl.when((df["Platelets"] >= 100) & (df["Platelets"] < 150)).then(1)
-        .when((df["Platelets"] >= 50) & (df["Platelets"] < 100)).then(2)
-        .when((df["Platelets"] >= 20) & (df["Platelets"] < 50)).then(3)
-        .when(df["Platelets"] < 20).then(4)
-        .otherwise(0) +
-        # Bilirubin component
-        pl.when((df["Bilirubin_total"] >= 1.2) & (df["Bilirubin_total"] <= 1.9)).then(1)
-        .when((df["Bilirubin_total"] > 1.9) & (df["Bilirubin_total"] <= 5.9)).then(2)
-        .when((df["Bilirubin_total"] > 5.9) & (df["Bilirubin_total"] <= 11.9)).then(3)
-        .when(df["Bilirubin_total"] > 11.9).then(4)
-        .otherwise(0) +
-        # MAP component
-        pl.when(df["MAP"] < 70).then(1).otherwise(0) +
-        # Creatinine component
-        pl.when((df["Creatinine"] >= 1.2) & (df["Creatinine"] <= 1.9)).then(1)
-        .when((df["Creatinine"] > 1.9) & (df["Creatinine"] <= 3.4)).then(2)
-        .when((df["Creatinine"] > 3.4) & (df["Creatinine"] <= 4.9)).then(3)
-        .when(df["Creatinine"] > 4.9).then(4)
-        .otherwise(0)
-    ).alias("PartialSOFA")
-    
-    # Calculate qSOFA (Quick SOFA)
-    qsofa = (
-        # Start with 0
-        pl.lit(0) +
-        # SBP component
-        pl.when(df["SBP"] <= 100).then(1).otherwise(0) +
-        # Respiratory rate component
-        pl.when(df["Resp"] >= 22).then(1).otherwise(0)
-        # Note: The third qSOFA component is altered mental status (GCS<15)
-        # but this appears to be missing from the dataset
-    ).alias("qSOFA")
-
-    # Add SOFA score
-    df = df.with_columns([sofa, qsofa])
-    
-    return df
