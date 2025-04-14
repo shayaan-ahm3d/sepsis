@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import lgbm_pipeline.feature_load as loader
 import lgbm_pipeline.feature_extraction as extractor
 import mgbm_pipeline.src.features.derive_features as derive
@@ -11,10 +13,10 @@ import xgboost as xgb
 
 VITALS = ['HR', 'O2Sat', 'Temp', 'SBP', 'MAP', 'DBP', 'Resp', 'EtCO2']
 LABS = [
-    'BaseExcess', 'HCO3', 'FiO2', 'pH', 'PaCO2', 'SaO2', 'AST', 'BUN',
-    'Alkalinephos', 'Calcium', 'Chloride', 'Creatinine', 'Bilirubin_direct',
-    'Glucose', 'Lactate', 'Magnesium', 'Phosphate', 'Potassium', 'Bilirubin_total',
-    'TroponinI', 'Hct', 'Hgb', 'PTT', 'WBC', 'Fibrinogen', 'Platelets'
+	'BaseExcess', 'HCO3', 'FiO2', 'pH', 'PaCO2', 'SaO2', 'AST', 'BUN',
+	'Alkalinephos', 'Calcium', 'Chloride', 'Creatinine', 'Bilirubin_direct',
+	'Glucose', 'Lactate', 'Magnesium', 'Phosphate', 'Potassium', 'Bilirubin_total',
+	'TroponinI', 'Hct', 'Hgb', 'PTT', 'WBC', 'Fibrinogen', 'Platelets'
 ]
 DEMOGRAPHICS = ['Age', 'Gender']
 DROPS = ['Unit1', 'Unit2', 'HospAdmTime', 'ICULOS']
@@ -22,7 +24,16 @@ OUTCOME = 'SepsisLabel'
 
 FEATURES = VITALS + LABS + DEMOGRAPHICS
 
-patients: list[pl.DataFrame] = loader.load_data("training_set?/*.psv", max_files=100)
+def find_project_root(marker=".gitignore"):
+	current = Path.cwd()
+	for parent in [current] + list(current.parents):
+		if (parent / marker).exists():
+			return parent.resolve()
+	raise FileNotFoundError(f"Project root marker '{marker}' not found starting from {current}")
+
+root = find_project_root()
+
+patients: list[pl.DataFrame] = loader.load_data(f"{root}/training_set?/*.psv", max_files=None)
 
 # # Train/test split
 # Ensure enough sepsis patient representation in train and test sets
@@ -62,19 +73,19 @@ fill_to_list: dict[extractor.FillMethod, list[pl.DataFrame]] = {
 	extractor.FillMethod.FORWARD : train_patients_forward,
 	extractor.FillMethod.BACKWARD: train_patients_backward,
 	extractor.FillMethod.LINEAR  : train_patients_linear,
-    }
+	}
 
 fill_to_concat: dict[extractor.FillMethod, pl.DataFrame] = {
 	extractor.FillMethod.FORWARD : pl.concat(train_patients_forward, how="vertical"),
 	extractor.FillMethod.BACKWARD: pl.concat(train_patients_backward, how="vertical"),
 	extractor.FillMethod.LINEAR  : pl.concat(train_patients_linear, how="vertical"),
-    }
+	}
 
 fill_to_corr = {
 	extractor.FillMethod.FORWARD : fill_to_concat[extractor.FillMethod.FORWARD].to_pandas().corr(),
 	extractor.FillMethod.BACKWARD: fill_to_concat[extractor.FillMethod.BACKWARD].to_pandas().corr(),
 	extractor.FillMethod.LINEAR  : fill_to_concat[extractor.FillMethod.LINEAR].to_pandas().corr(),
-    }
+	}
 
 fill_methods_to_use: dict[str, extractor.FillMethod] = extractor.best_fill_method_for_feature(fill_to_corr,FEATURES)
 train_patients_mixed: list[pl.DataFrame] = extractor.mixed_fill(fill_to_list, fill_methods_to_use)
@@ -87,7 +98,7 @@ fill_method_to_test_patients: dict[extractor.FillMethod, list[pl.DataFrame]] = {
 	extractor.FillMethod.FORWARD : test_patients_forward,
 	extractor.FillMethod.BACKWARD: test_patients_backward,
 	extractor.FillMethod.LINEAR  : test_patients_linear,
-    }
+	}
 
 test_patients_mixed: list[pl.DataFrame] = extractor.mixed_fill(fill_method_to_test_patients, fill_methods_to_use)
 
