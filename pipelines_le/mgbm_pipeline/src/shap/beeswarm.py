@@ -11,7 +11,6 @@ def shap_beeswarm(X_test, model, shap_explainer=shap.TreeExplainer):
     - None
     """
     
-    # Initialize SHAP and compute SHAP values for the test set
     shap.initjs()
     explainer = shap_explainer(model)
     shap_values = explainer(X_test)
