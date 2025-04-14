@@ -22,7 +22,7 @@ OUTCOME = 'SepsisLabel'
 
 FEATURES = VITALS + LABS + DEMOGRAPHICS
 
-patients: list[pl.DataFrame] = loader.load_data("../training_set?/*.psv", max_files=None)
+patients: list[pl.DataFrame] = loader.load_data("training_set?/*.psv", max_files=100)
 
 # # Train/test split
 # Ensure enough sepsis patient representation in train and test sets
@@ -93,27 +93,27 @@ test_patients_mixed: list[pl.DataFrame] = extractor.mixed_fill(fill_method_to_te
 
 # # Down sample non-sepsis patient data
 
-mixed_sepsis = []
-mixed_non_sepsis = []
+# mixed_sepsis = []
+# mixed_non_sepsis = []
+#
+# for patient in tqdm(train_patients_mixed, "Splitting sepsis/non-sepsis patients"):
+# 	if patient.select(pl.any("SepsisLabel")).item():
+# 		mixed_sepsis.append(patient)
+# 	else:
+# 		mixed_non_sepsis.append(patient)
+#
+# mixed_non_sepsis = shuffle(mixed_non_sepsis, random_state=42, n_samples=2*len(mixed_sepsis))
+# final_train = mixed_non_sepsis + mixed_sepsis
 
-for patient in tqdm(train_patients_mixed, "Splitting sepsis/non-sepsis patients"):
-	if patient.select(pl.any("SepsisLabel")).item():
-		mixed_sepsis.append(patient)
-	else:
-		mixed_non_sepsis.append(patient)
+train_mixed = derive.compute_derived_features_polars(pl.concat(train_patients_mixed, how="vertical"))
+test_mixed = derive.compute_derived_features_polars(pl.concat(test_patients_mixed, how="vertical"))
 
-mixed_non_sepsis = shuffle(mixed_non_sepsis, random_state=42, n_samples=2*len(mixed_sepsis))
-final_train = mixed_non_sepsis + mixed_sepsis
+X_train = train_mixed.drop("SepsisLabel")
+y_train = train_mixed.select("SepsisLabel").to_series()
+X_test = test_mixed.drop("SepsisLabel")
+y_test = test_mixed.select("SepsisLabel").to_series()
 
-train = derive.compute_derived_features_polars(pl.concat(final_train, how="vertical"))
-test = derive.compute_derived_features_polars(pl.concat(test_patients_mixed, how="vertical"))
-
-X_train = train.drop("SepsisLabel")
-y_train = train.select("SepsisLabel").to_series()
-X_test = test.drop("SepsisLabel")
-y_test = test.select("SepsisLabel").to_series()
-
-f = make_scorer(fbeta_score, beta=1)
+f = make_scorer(fbeta_score, beta=5.5)
 
 clf = xgb.XGBClassifier(objective="binary:logistic", eval_metric=f, scale_pos_weight=ratio)
 bst = clf.fit(X_train, y_train)
@@ -121,3 +121,28 @@ bst = clf.fit(X_train, y_train)
 y_pred = bst.predict(X_test)
 
 print(classification_report(y_test, y_pred))
+
+for method in tqdm(extractor.FillMethod, "Training on different fills"):
+	if method == extractor.FillMethod.FORWARD:
+		print("Forward")
+		train = derive.compute_derived_features_polars(pl.concat(train_patients_forward, how="vertical"))
+		test = derive.compute_derived_features_polars(pl.concat(test_patients_forward, how="vertical"))
+	elif method == extractor.FillMethod.BACKWARD:
+		print("Backward")
+		train = derive.compute_derived_features_polars(pl.concat(train_patients_backward, how="vertical"))
+		test = derive.compute_derived_features_polars(pl.concat(test_patients_backward, how="vertical"))
+	elif method == extractor.FillMethod.LINEAR:
+		print("Linear")
+		train = derive.compute_derived_features_polars(pl.concat(train_patients_linear, how="vertical"))
+		test = derive.compute_derived_features_polars(pl.concat(test_patients_linear, how="vertical"))
+
+	X_train = train.drop("SepsisLabel")
+	y_train = train.select("SepsisLabel").to_series()
+	X_test = test.drop("SepsisLabel")
+	y_test = test.select("SepsisLabel").to_series()
+
+	bst = clf.fit(X_train, y_train)
+
+	y_pred = bst.predict(X_test)
+
+	print(classification_report(y_test, y_pred))
