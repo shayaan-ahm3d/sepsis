@@ -107,7 +107,11 @@ test_patients_mixed: list[pl.DataFrame] = extractor.mixed_fill(fill_method_to_te
 # final_train = mixed_non_sepsis + mixed_sepsis
 
 train_mixed = derive.compute_derived_features_polars(pl.concat(train_patients_mixed, how="vertical"))
+train_mixed = extractor.compute_expanding_min_max(train_mixed)
+train_mixed = extractor.compute_sliding_stats(train_mixed)
 test_mixed = derive.compute_derived_features_polars(pl.concat(test_patients_mixed, how="vertical"))
+test_mixed = extractor.compute_expanding_min_max(test_mixed)
+test_mixed = extractor.compute_sliding_stats(test_mixed)
 
 X_train = train_mixed.drop("SepsisLabel")
 y_train = train_mixed.select("SepsisLabel").to_series()
