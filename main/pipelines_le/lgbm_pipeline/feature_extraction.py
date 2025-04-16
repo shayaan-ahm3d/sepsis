@@ -1,5 +1,6 @@
 from enum import Enum, auto
 
+from pandas.errors import InvalidColumnName
 from tqdm import tqdm
 import polars as pl
 
@@ -61,47 +62,39 @@ def mixed_fill(fill_methods_to_patients: dict[FillMethod, list[pl.DataFrame]],
 			mixed_fill_df = mixed_fill_df.with_columns(filled_column)
 
 		# Add the SepsisLabel column from the original patient DataFrame
-		mixed_fill_df = mixed_fill_df.with_columns(fill_methods_to_patients[FillMethod.FORWARD][i].select("SepsisLabel"))
+		mixed_fill_df = mixed_fill_df.with_columns(
+			fill_methods_to_patients[FillMethod.FORWARD][i].select("SepsisLabel"))
 		patients_mixed.append(mixed_fill_df)
 
 	return patients_mixed
 
 
-def extract_pre_sepsis_window(patients: list[pl.DataFrame], window_hours: int = 6) -> list[pl.DataFrame]:
-	"""
-	For patients who develop sepsis, extracts data from the specified hours before SepsisLabel turns to 1.
-	For patients who never develop sepsis, returns the original data unchanged.
+def compute_expanding_min_max(df: pl.DataFrame, columns: list[str] = None) -> pl.DataFrame:
+	VITALS = ['HR', 'O2Sat', 'Temp', 'SBP', 'MAP', 'DBP', 'Resp', 'EtCO2']
+	LABS = [
+		'BaseExcess', 'HCO3', 'FiO2', 'pH', 'PaCO2', 'SaO2', 'AST', 'BUN',
+		'Alkalinephos', 'Calcium', 'Chloride', 'Creatinine', 'Bilirubin_direct',
+		'Glucose', 'Lactate', 'Magnesium', 'Phosphate', 'Potassium', 'Bilirubin_total',
+		'TroponinI', 'Hct', 'Hgb', 'PTT', 'WBC', 'Fibrinogen', 'Platelets'
+	]
+	DEMOGRAPHICS = ['Age', 'Gender']
+	DROPS = ['Unit1', 'Unit2', 'HospAdmTime', 'ICULOS']
+	OUTCOME = 'SepsisLabel'
 
-	Args:
-		patients: List of patient DataFrames
-		window_hours: Number of hours before sepsis onset to include
+	FEATURES = VITALS + LABS + DEMOGRAPHICS
 
-	Returns:
-		List of DataFrames with either pre-sepsis window data or original data
-	"""
-	result = []
+	if columns is None:
+		columns = VITALS + LABS
 
-	for patient in tqdm(patients, "Processing pre-sepsis windows"):
-		# Check if patient ever develops sepsis
-		if not patient["SepsisLabel"].any():
-			# Do nothing for non-sepsis patients
-			result.append(patient)
-			continue
+	for col in columns:
+		if col not in df.columns:
+			raise IndexError(f"{col} not in DataFrame")
 
-		# Find the first time SepsisLabel turns to 1
-		sepsis_indices = patient[patient["SepsisLabel"] == 1].index
-		sepsis_onset_time = sepsis_indices[0]
+	min_expressions = [df.select(col).to_series().cum_min().alias(f"{col}_min") for col in columns]
+	max_expressions = [df.select(col).to_series().cum_max().alias(f"{col}_max") for col in columns]
 
-		# Define the window start time (window_hours before sepsis onset)
-		window_start = sepsis_onset_time - pl.Timedelta(hours=window_hours)
+	# Add all expressions at once
+	if min_expressions or max_expressions:
+		return df.with_columns(min_expressions + max_expressions)
 
-		# If window starts before patient data, adjust to start of patient data
-		if window_start < patient.index[0]:
-			window_start = patient.index[0]
-
-		# Extract the window data (up to but not including the sepsis onset point)
-		window_data = patient.loc[window_start:sepsis_onset_time]
-
-		result.append(window_data)
-
-	return result
+	return df

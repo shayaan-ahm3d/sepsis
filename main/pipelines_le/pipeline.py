@@ -137,15 +137,21 @@ for method in tqdm(extractor.FillMethod, "Training on different fills"):
 	if method == extractor.FillMethod.FORWARD:
 		print("Forward")
 		train = derive.compute_derived_features_polars(pl.concat(train_patients_forward, how="vertical"))
+		train = extractor.compute_expanding_min_max(train)
 		test = derive.compute_derived_features_polars(pl.concat(test_patients_forward, how="vertical"))
+		test = extractor.compute_expanding_min_max(test)
 	elif method == extractor.FillMethod.BACKWARD:
 		print("Backward")
 		train = derive.compute_derived_features_polars(pl.concat(train_patients_backward, how="vertical"))
+		train = extractor.compute_expanding_min_max(train)
 		test = derive.compute_derived_features_polars(pl.concat(test_patients_backward, how="vertical"))
+		test = extractor.compute_expanding_min_max(test)
 	elif method == extractor.FillMethod.LINEAR:
 		print("Linear")
 		train = derive.compute_derived_features_polars(pl.concat(train_patients_linear, how="vertical"))
+		train = extractor.compute_expanding_min_max(train)
 		test = derive.compute_derived_features_polars(pl.concat(test_patients_linear, how="vertical"))
+		test = extractor.compute_expanding_min_max(test)
 
 	X_train = train.drop("SepsisLabel")
 	y_train = train.select("SepsisLabel").to_series()
