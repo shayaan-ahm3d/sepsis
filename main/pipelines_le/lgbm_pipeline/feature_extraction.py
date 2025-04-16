@@ -1,8 +1,19 @@
-from enum import Enum, auto
+from enum import auto, Enum
 
-from pandas.errors import InvalidColumnName
-from tqdm import tqdm
 import polars as pl
+from tqdm import tqdm
+
+VITALS = ['HR', 'O2Sat', 'Temp', 'SBP', 'MAP', 'DBP', 'Resp', 'EtCO2']
+LABS = [
+	'BaseExcess', 'HCO3', 'FiO2', 'pH', 'PaCO2', 'SaO2', 'AST', 'BUN',
+	'Alkalinephos', 'Calcium', 'Chloride', 'Creatinine', 'Bilirubin_direct',
+	'Glucose', 'Lactate', 'Magnesium', 'Phosphate', 'Potassium', 'Bilirubin_total',
+	'TroponinI', 'Hct', 'Hgb', 'PTT', 'WBC', 'Fibrinogen', 'Platelets'
+]
+DEMOGRAPHICS = ['Age', 'Gender']
+DROPS = ['Unit1', 'Unit2', 'HospAdmTime', 'ICULOS']
+OUTCOME = 'SepsisLabel'
+FEATURES = VITALS + LABS + DEMOGRAPHICS
 
 
 class FillMethod(Enum):
@@ -28,8 +39,7 @@ def fill(patients: list[pl.DataFrame], method=FillMethod.FORWARD) -> list[pl.Dat
 	return filled_data
 
 
-def best_fill_method_for_feature(correlation_matrices, features: list[str]) -> dict[
-	str, FillMethod]:
+def best_fill_method_for_feature(correlation_matrices, features: list[str]) -> dict[str, FillMethod]:
 	# Determine the best fill method for each feature
 	features_to_fill_methods: dict[str, FillMethod] = {}
 
@@ -70,19 +80,6 @@ def mixed_fill(fill_methods_to_patients: dict[FillMethod, list[pl.DataFrame]],
 
 
 def compute_expanding_min_max(df: pl.DataFrame, columns: list[str] = None) -> pl.DataFrame:
-	VITALS = ['HR', 'O2Sat', 'Temp', 'SBP', 'MAP', 'DBP', 'Resp', 'EtCO2']
-	LABS = [
-		'BaseExcess', 'HCO3', 'FiO2', 'pH', 'PaCO2', 'SaO2', 'AST', 'BUN',
-		'Alkalinephos', 'Calcium', 'Chloride', 'Creatinine', 'Bilirubin_direct',
-		'Glucose', 'Lactate', 'Magnesium', 'Phosphate', 'Potassium', 'Bilirubin_total',
-		'TroponinI', 'Hct', 'Hgb', 'PTT', 'WBC', 'Fibrinogen', 'Platelets'
-	]
-	DEMOGRAPHICS = ['Age', 'Gender']
-	DROPS = ['Unit1', 'Unit2', 'HospAdmTime', 'ICULOS']
-	OUTCOME = 'SepsisLabel'
-
-	FEATURES = VITALS + LABS + DEMOGRAPHICS
-
 	if columns is None:
 		columns = VITALS + LABS
 
@@ -96,5 +93,54 @@ def compute_expanding_min_max(df: pl.DataFrame, columns: list[str] = None) -> pl
 	# Add all expressions at once
 	if min_expressions or max_expressions:
 		return df.with_columns(min_expressions + max_expressions)
+
+	return df
+
+
+def compute_sliding_stats(df: pl.DataFrame, columns: list[str] = None, window_size_hours: int = 6) -> pl.DataFrame:
+	if columns is None:
+		columns = VITALS + LABS
+
+	for col in columns:
+		if col not in df.columns:
+			raise IndexError(f"{col} not in DataFrame")
+
+	mean_expressions = [
+		pl.col(col)
+		.rolling_mean(
+			window_size=window_size_hours,
+			min_periods=1,
+			center=False
+		)
+		.alias(f"{col}_mean_{window_size_hours}hr")
+		for col in columns
+	]
+
+	median_expressions = [
+		pl.col(col)
+		.rolling_median(
+			window_size=window_size_hours,
+			min_periods=1,
+			center=False
+		)
+		.alias(f"{col}_median_{window_size_hours}hr")
+		for col in columns
+	]
+
+	var_expressions = [
+		pl.col(col)
+		.rolling_var(
+			window_size=window_size_hours,
+			min_periods=1,
+			center=False
+		)
+		.alias(f"{col}_var_{window_size_hours}hr")
+		for col in columns
+	]
+
+	# Add all expressions at once
+	all_expressions = mean_expressions + median_expressions + var_expressions
+	if all_expressions:
+		return df.with_columns(all_expressions)
 
 	return df

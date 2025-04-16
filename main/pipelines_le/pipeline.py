@@ -2,6 +2,7 @@ from pathlib import Path
 
 import lgbm_pipeline.feature_load as loader
 import lgbm_pipeline.feature_extraction as extractor
+from lgbm_pipeline.feature_extraction import VITALS, LABS, DEMOGRAPHICS, DROPS, OUTCOME, FEATURES
 import mgbm_pipeline.src.features.derive_features as derive
 
 from tqdm import tqdm
@@ -11,25 +12,14 @@ from sklearn.metrics import fbeta_score, make_scorer, classification_report, Roc
 from sklearn.utils import shuffle
 import xgboost as xgb
 
-VITALS = ['HR', 'O2Sat', 'Temp', 'SBP', 'MAP', 'DBP', 'Resp', 'EtCO2']
-LABS = [
-	'BaseExcess', 'HCO3', 'FiO2', 'pH', 'PaCO2', 'SaO2', 'AST', 'BUN',
-	'Alkalinephos', 'Calcium', 'Chloride', 'Creatinine', 'Bilirubin_direct',
-	'Glucose', 'Lactate', 'Magnesium', 'Phosphate', 'Potassium', 'Bilirubin_total',
-	'TroponinI', 'Hct', 'Hgb', 'PTT', 'WBC', 'Fibrinogen', 'Platelets'
-]
-DEMOGRAPHICS = ['Age', 'Gender']
-DROPS = ['Unit1', 'Unit2', 'HospAdmTime', 'ICULOS']
-OUTCOME = 'SepsisLabel'
 
-FEATURES = VITALS + LABS + DEMOGRAPHICS
-
-def find_project_root(marker=".gitignore"):
+def find_project_root(marker=".gitignore") -> Path:
 	current = Path.cwd()
 	for parent in [current] + list(current.parents):
 		if (parent / marker).exists():
 			return parent.resolve()
 	raise FileNotFoundError(f"Project root marker '{marker}' not found starting from {current}")
+
 
 root = find_project_root()
 
@@ -73,21 +63,21 @@ fill_to_list: dict[extractor.FillMethod, list[pl.DataFrame]] = {
 	extractor.FillMethod.FORWARD : train_patients_forward,
 	extractor.FillMethod.BACKWARD: train_patients_backward,
 	extractor.FillMethod.LINEAR  : train_patients_linear,
-	}
+}
 
 fill_to_concat: dict[extractor.FillMethod, pl.DataFrame] = {
 	extractor.FillMethod.FORWARD : pl.concat(train_patients_forward, how="vertical"),
 	extractor.FillMethod.BACKWARD: pl.concat(train_patients_backward, how="vertical"),
 	extractor.FillMethod.LINEAR  : pl.concat(train_patients_linear, how="vertical"),
-	}
+}
 
 fill_to_corr = {
 	extractor.FillMethod.FORWARD : fill_to_concat[extractor.FillMethod.FORWARD].to_pandas().corr(),
 	extractor.FillMethod.BACKWARD: fill_to_concat[extractor.FillMethod.BACKWARD].to_pandas().corr(),
 	extractor.FillMethod.LINEAR  : fill_to_concat[extractor.FillMethod.LINEAR].to_pandas().corr(),
-	}
+}
 
-fill_methods_to_use: dict[str, extractor.FillMethod] = extractor.best_fill_method_for_feature(fill_to_corr,FEATURES)
+fill_methods_to_use: dict[str, extractor.FillMethod] = extractor.best_fill_method_for_feature(fill_to_corr, FEATURES)
 train_patients_mixed: list[pl.DataFrame] = extractor.mixed_fill(fill_to_list, fill_methods_to_use)
 
 test_patients_forward: list[pl.DataFrame] = extractor.fill(test_patients, extractor.FillMethod.FORWARD)
@@ -98,7 +88,7 @@ fill_method_to_test_patients: dict[extractor.FillMethod, list[pl.DataFrame]] = {
 	extractor.FillMethod.FORWARD : test_patients_forward,
 	extractor.FillMethod.BACKWARD: test_patients_backward,
 	extractor.FillMethod.LINEAR  : test_patients_linear,
-	}
+}
 
 test_patients_mixed: list[pl.DataFrame] = extractor.mixed_fill(fill_method_to_test_patients, fill_methods_to_use)
 
@@ -137,21 +127,20 @@ for method in tqdm(extractor.FillMethod, "Training on different fills"):
 	if method == extractor.FillMethod.FORWARD:
 		print("Forward")
 		train = derive.compute_derived_features_polars(pl.concat(train_patients_forward, how="vertical"))
-		train = extractor.compute_expanding_min_max(train)
 		test = derive.compute_derived_features_polars(pl.concat(test_patients_forward, how="vertical"))
-		test = extractor.compute_expanding_min_max(test)
 	elif method == extractor.FillMethod.BACKWARD:
 		print("Backward")
 		train = derive.compute_derived_features_polars(pl.concat(train_patients_backward, how="vertical"))
-		train = extractor.compute_expanding_min_max(train)
 		test = derive.compute_derived_features_polars(pl.concat(test_patients_backward, how="vertical"))
-		test = extractor.compute_expanding_min_max(test)
 	elif method == extractor.FillMethod.LINEAR:
 		print("Linear")
 		train = derive.compute_derived_features_polars(pl.concat(train_patients_linear, how="vertical"))
-		train = extractor.compute_expanding_min_max(train)
 		test = derive.compute_derived_features_polars(pl.concat(test_patients_linear, how="vertical"))
-		test = extractor.compute_expanding_min_max(test)
+
+	train = extractor.compute_expanding_min_max(train)
+	train = extractor.compute_sliding_stats(train)
+	test = extractor.compute_expanding_min_max(test)
+	test = extractor.compute_sliding_stats(test)
 
 	X_train = train.drop("SepsisLabel")
 	y_train = train.select("SepsisLabel").to_series()
