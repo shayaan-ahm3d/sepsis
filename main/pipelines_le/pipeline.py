@@ -1,15 +1,20 @@
-from pathlib import Path
-
 import lgbm_pipeline.feature_load as loader
 import lgbm_pipeline.feature_extraction as extractor
 from lgbm_pipeline.feature_extraction import VITALS, LABS, DEMOGRAPHICS, DROPS, OUTCOME, FEATURES
 import mgbm_pipeline.src.features.derive_features as derive
 
+from pathlib import Path
+
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
 import polars as pl
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import fbeta_score, make_scorer, classification_report, RocCurveDisplay, ConfusionMatrixDisplay
 from sklearn.utils import shuffle
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import precision_score, recall_score, f1_score, fbeta_score, make_scorer, classification_report, \
+	ConfusionMatrixDisplay, RocCurveDisplay, PrecisionRecallDisplay
 import xgboost as xgb
 
 
@@ -92,19 +97,21 @@ fill_method_to_test_patients: dict[extractor.FillMethod, list[pl.DataFrame]] = {
 
 test_patients_mixed: list[pl.DataFrame] = extractor.mixed_fill(fill_method_to_test_patients, fill_methods_to_use)
 
-# # Down sample non-sepsis patient data
+# Down sample non-sepsis patient data
 
-# mixed_sepsis = []
-# mixed_non_sepsis = []
-#
-# for patient in tqdm(train_patients_mixed, "Splitting sepsis/non-sepsis patients"):
-# 	if patient.select(pl.any("SepsisLabel")).item():
-# 		mixed_sepsis.append(patient)
-# 	else:
-# 		mixed_non_sepsis.append(patient)
-#
-# mixed_non_sepsis = shuffle(mixed_non_sepsis, random_state=42, n_samples=2*len(mixed_sepsis))
-# final_train = mixed_non_sepsis + mixed_sepsis
+mixed_sepsis = []
+mixed_non_sepsis = []
+
+for patient in tqdm(train_patients_mixed, "Splitting sepsis/non-sepsis patients"):
+	if patient.select(pl.any("SepsisLabel")).item():
+		mixed_sepsis.append(patient)
+	else:
+		mixed_non_sepsis.append(patient)
+
+mixed_non_sepsis = shuffle(mixed_non_sepsis, n_samples=2 * len(mixed_sepsis))
+ratio = len(mixed_non_sepsis) / len(mixed_sepsis)
+print(f"Downsampled Ratio: {ratio}")
+final_train = mixed_non_sepsis + mixed_sepsis
 
 train_mixed = derive.compute_derived_features_polars(pl.concat(train_patients_mixed, how="vertical"))
 train_mixed = extractor.compute_expanding_min_max(train_mixed)
@@ -118,14 +125,43 @@ y_train = train_mixed.select("SepsisLabel").to_series()
 X_test = test_mixed.drop("SepsisLabel")
 y_test = test_mixed.select("SepsisLabel").to_series()
 
-f = make_scorer(fbeta_score, beta=5.5)
-
+f = make_scorer(fbeta_score, beta=4)
 clf = xgb.XGBClassifier(objective="binary:logistic", eval_metric=f, scale_pos_weight=ratio)
+
 bst = clf.fit(X_train, y_train)
 
-y_pred = bst.predict(X_test)
+# Get predicted probabilities that the patient gets sepsis at that time
+y_pred_proba = bst.predict_proba(X_test)[:, 1]
 
-print(classification_report(y_test, y_pred))
+# Define threshold range to evaluate
+thresholds = np.linspace(0.1, 0.9, 50)
+beta = 4
+
+# Store metrics for each threshold
+results = []
+for threshold in thresholds:
+	y_pred_binary = (y_pred_proba >= threshold).astype(int)
+
+	results.append({
+		'threshold': threshold,
+		'precision': precision_score(y_test, y_pred_binary),
+		'recall'   : recall_score(y_test, y_pred_binary),
+		'f1'       : f1_score(y_test, y_pred_binary),
+		'fbeta'    : fbeta_score(y_test, y_pred_binary, beta=beta),
+	})
+
+results_df = pd.DataFrame(results)
+
+# Find threshold that maximizes a certain metric
+best_idx = results_df['fbeta'].idxmax()
+best = results_df.iloc[best_idx]
+print(best)
+
+y_pred_optimal = (y_pred_proba >= best['threshold']).astype(int)
+
+print(f"Best threshold: {best['threshold']:.4f}")
+print(f"F-{beta} score at optimal threshold: {best['fbeta']:.4f}")
+print(classification_report(y_test, y_pred_optimal))
 
 for method in tqdm(extractor.FillMethod, "Training on different fills"):
 	if method == extractor.FillMethod.FORWARD:
@@ -153,6 +189,35 @@ for method in tqdm(extractor.FillMethod, "Training on different fills"):
 
 	bst = clf.fit(X_train, y_train)
 
-	y_pred = bst.predict(X_test)
+	# Get predicted probabilities that the patient gets sepsis at that time
+	y_pred_proba = bst.predict_proba(X_test)[:, 1]
 
-	print(classification_report(y_test, y_pred))
+	# Define threshold range to evaluate
+	thresholds = np.linspace(0.1, 0.9, 50)
+	beta = 4
+
+	# Store metrics for each threshold
+	results = []
+	for threshold in thresholds:
+		y_pred_binary = (y_pred_proba >= threshold).astype(int)
+
+		results.append({
+			'threshold': threshold,
+			'precision': precision_score(y_test, y_pred_binary),
+			'recall'   : recall_score(y_test, y_pred_binary),
+			'f1'       : f1_score(y_test, y_pred_binary),
+			'fbeta'    : fbeta_score(y_test, y_pred_binary, beta=beta),
+		})
+
+	results_df = pd.DataFrame(results)
+
+	# Find threshold that maximizes a certain metric
+	best_idx = results_df['fbeta'].idxmax()
+	best = results_df.iloc[best_idx]
+	print(best)
+
+	y_pred_optimal = (y_pred_proba >= best['threshold']).astype(int)
+
+	print(f"Best threshold: {best['threshold']:.4f}")
+	print(f"F-{beta} score at optimal threshold: {best['fbeta']:.4f}")
+	print(classification_report(y_test, y_pred_optimal))

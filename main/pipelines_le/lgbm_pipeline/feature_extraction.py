@@ -43,11 +43,11 @@ def best_fill_method_for_feature(correlation_matrices, features: list[str]) -> d
 	# Determine the best fill method for each feature
 	features_to_fill_methods: dict[str, FillMethod] = {}
 
-	for feature in tqdm(features, "Finding optimal fill methods"):
+	for feature in tqdm(features, "Calculating optimal fill method for each feature"):
 		max_corr: float = 0
 		best_method: FillMethod = FillMethod.FORWARD
 
-		for method in tqdm(FillMethod):
+		for method in FillMethod:
 			corr: float = correlation_matrices[method][feature]["SepsisLabel"]
 			if abs(corr) > max_corr:
 				max_corr = corr
