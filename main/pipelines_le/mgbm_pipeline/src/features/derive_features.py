@@ -243,5 +243,6 @@ def compute_derived_features_polars(df: pl.DataFrame) -> pl.DataFrame:
 
     # Add SOFA score
     df = df.with_columns([sofa, qsofa])
+    df = df.drop(["HR", "SBP","DBP", "MAP", "Creatinine", "BUN", "Bilirubin_total", "Platelets", "Resp", "FiO2", "SaO2"])
     
     return df
