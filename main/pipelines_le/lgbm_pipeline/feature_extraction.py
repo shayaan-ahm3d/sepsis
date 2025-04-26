@@ -83,12 +83,10 @@ def compute_expanding_min_max(df: pl.DataFrame, columns: list[str] = None) -> pl
 	if columns is None:
 		columns = VITALS + LABS
 
-	for col in columns:
-		if col not in df.columns:
-			raise IndexError(f"{col} not in DataFrame")
+	valid_columns = [col for col in columns if col in df.columns]
 
-	min_expressions = [df.select(col).to_series().cum_min().alias(f"{col}_min") for col in columns]
-	max_expressions = [df.select(col).to_series().cum_max().alias(f"{col}_max") for col in columns]
+	min_expressions = [df.select(col).to_series().cum_min().alias(f"{col}_min") for col in valid_columns]
+	max_expressions = [df.select(col).to_series().cum_max().alias(f"{col}_max") for col in valid_columns]
 
 	# Add all expressions at once
 	if min_expressions or max_expressions:
@@ -97,13 +95,11 @@ def compute_expanding_min_max(df: pl.DataFrame, columns: list[str] = None) -> pl
 	return df
 
 
-def compute_sliding_stats(df: pl.DataFrame, columns: list[str] = None, window_size_hours: int = 6) -> pl.DataFrame:
+def compute_sliding_stats(df: pl.DataFrame, columns: list[str] = None, window_size_hours: int = 5) -> pl.DataFrame:
 	if columns is None:
 		columns = VITALS + LABS
 
-	for col in columns:
-		if col not in df.columns:
-			raise IndexError(f"{col} not in DataFrame")
+	valid_columns = [col for col in columns if col in df.columns]
 
 	mean_expressions = [
 		pl.col(col)
@@ -113,7 +109,7 @@ def compute_sliding_stats(df: pl.DataFrame, columns: list[str] = None, window_si
 			center=False
 		)
 		.alias(f"{col}_mean_{window_size_hours}hr")
-		for col in columns
+		for col in valid_columns
 	]
 
 	median_expressions = [
@@ -124,7 +120,7 @@ def compute_sliding_stats(df: pl.DataFrame, columns: list[str] = None, window_si
 			center=False
 		)
 		.alias(f"{col}_median_{window_size_hours}hr")
-		for col in columns
+		for col in valid_columns
 	]
 
 	var_expressions = [
@@ -135,7 +131,7 @@ def compute_sliding_stats(df: pl.DataFrame, columns: list[str] = None, window_si
 			center=False
 		)
 		.alias(f"{col}_var_{window_size_hours}hr")
-		for col in columns
+		for col in valid_columns
 	]
 
 	# Add all expressions at once
